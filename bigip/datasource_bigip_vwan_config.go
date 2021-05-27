@@ -159,13 +159,6 @@ type azureConfig struct {
 	accountKey        string
 }
 
-type azureVwanGwconfig struct {
-	edgeGwaddress    string
-	vwanGwaddress    string
-	vwanAddressSpace []string
-	gwPsk            string
-}
-
 func DownloadVwanConfig(config azureConfig) ([]map[string]interface{}, error) {
 	subscriptionID := config.subscriptionID
 	clientID := config.clientID
