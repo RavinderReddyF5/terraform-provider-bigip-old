@@ -126,9 +126,31 @@ func resourceBigipLtmProfileClientSsl() *schema.Resource {
 			"cert": {
 				Type:         schema.TypeString,
 				Optional:     true,
-				Computed:     true,
+				Default:      "/Common/default.crt",
 				ValidateFunc: validateF5Name,
 				Description:  "Name of the server certificate.",
+			},
+
+			"key": {
+				Type:         schema.TypeString,
+				Optional:     true,
+				Default:      "/Common/default.key",
+				ValidateFunc: validateF5Name,
+				Description:  "Name of the Server SSL profile key",
+			},
+
+			"chain": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Default:     "none",
+				Description: "Client certificate chain name.",
+			},
+
+			"passphrase": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Computed:    true,
+				Description: "Client Certificate Constrained Delegation CA passphrase",
 			},
 
 			"cert_key_chain": {
@@ -227,13 +249,6 @@ func resourceBigipLtmProfileClientSsl() *schema.Resource {
 				Description: "Cert lookup by ip address and port enabled / disabled",
 			},
 
-			"chain": {
-				Type:        schema.TypeString,
-				Optional:    true,
-				Computed:    true,
-				Description: "Client certificate chain name.",
-			},
-
 			"ciphers": {
 				Type:        schema.TypeString,
 				Optional:    true,
@@ -290,14 +305,6 @@ func resourceBigipLtmProfileClientSsl() *schema.Resource {
 				Description: "Inherit cert key chain",
 			},
 
-			"key": {
-				Type:         schema.TypeString,
-				Optional:     true,
-				Computed:     true,
-				ValidateFunc: validateF5Name,
-				Description:  "Name of the Server SSL profile key",
-			},
-
 			"mod_ssl_methods": {
 				Type:        schema.TypeString,
 				Optional:    true,
@@ -318,13 +325,6 @@ func resourceBigipLtmProfileClientSsl() *schema.Resource {
 				Set:      schema.HashString,
 				Optional: true,
 				Computed: true,
-			},
-
-			"passphrase": {
-				Type:        schema.TypeString,
-				Optional:    true,
-				Computed:    true,
-				Description: "Client Certificate Constrained Delegation CA passphrase",
 			},
 
 			"peer_cert_mode": {
@@ -587,8 +587,30 @@ func resourceBigipLtmProfileClientSSLRead(d *schema.ResourceData, meta interface
 		return fmt.Errorf("[DEBUG] Error saving CacheTimeout to state for Ssl profile  (%s): %s", d.Id(), err)
 	}
 
-	if err := d.Set("cert", obj.Cert); err != nil {
-		return fmt.Errorf("[DEBUG] Error saving Cert to state for Ssl profile  (%s): %s", d.Id(), err)
+	if _, ok := d.GetOk("cert"); ok {
+		if err := d.Set("cert", obj.Cert); err != nil {
+			return fmt.Errorf("[DEBUG] Error saving Cert to state for Ssl profile  (%s): %s", d.Id(), err)
+		}
+	}
+
+	if _, ok := d.GetOk("key"); ok {
+		if err := d.Set("key", obj.Key); err != nil {
+			return fmt.Errorf("[DEBUG] Error saving Key to state for Ssl profile  (%s): %s", d.Id(), err)
+		}
+	}
+
+	if _, ok := d.GetOk("chain"); ok {
+		if _, ok := d.GetOk("cert_key_chain"); !ok {
+			if err := d.Set("chain", obj.Chain); err != nil {
+				return fmt.Errorf("[DEBUG] Error saving Chain to state for Ssl profile  (%s): %s", d.Id(), err)
+			}
+		}
+	}
+
+	if _, ok := d.GetOk("passphrase"); ok {
+		if err := d.Set("passphrase", obj.Passphrase); err != nil {
+			return fmt.Errorf("[DEBUG] Error saving Passphrase to state for Ssl profile  (%s): %s", d.Id(), err)
+		}
 	}
 
 	//log.Printf("[DEBUG] CertKeyChain:%+v", obj.CertKeyChain)
@@ -602,7 +624,10 @@ func resourceBigipLtmProfileClientSSLRead(d *schema.ResourceData, meta interface
 		certMap["passphrase"] = c.Passphrase
 		certMapList = append(certMapList, certMap)
 	}
-	_ = d.Set("cert_key_chain", certMapList)
+
+	if _, ok := d.GetOk("cert_key_chain"); ok {
+		_ = d.Set("cert_key_chain", certMapList)
+	}
 
 	if err := d.Set("cert_extension_includes", obj.CertExtensionIncludes); err != nil {
 		return fmt.Errorf("[DEBUG] Error saving CertExtensionIncludes to state for Ssl profile  (%s): %s", d.Id(), err)
@@ -614,10 +639,6 @@ func resourceBigipLtmProfileClientSSLRead(d *schema.ResourceData, meta interface
 
 	if err := d.Set("cert_lookup_by_ipaddr_port", obj.CertLookupByIpaddrPort); err != nil {
 		return fmt.Errorf("[DEBUG] Error saving CertLookupByIpaddrPort to state for Ssl profile  (%s): %s", d.Id(), err)
-	}
-
-	if err := d.Set("chain", obj.Chain); err != nil {
-		return fmt.Errorf("[DEBUG] Error saving Chain to state for Ssl profile  (%s): %s", d.Id(), err)
 	}
 
 	if err := d.Set("ciphers", obj.Ciphers); err != nil {
@@ -646,9 +667,6 @@ func resourceBigipLtmProfileClientSSLRead(d *schema.ResourceData, meta interface
 
 	if err := d.Set("inherit_cert_keychain", obj.InheritCertkeychain); err != nil {
 		return fmt.Errorf("[DEBUG] Error saving InheritCertkeychain to state for Ssl profile  (%s): %s", d.Id(), err)
-	}
-	if err := d.Set("key", obj.Key); err != nil {
-		return fmt.Errorf("[DEBUG] Error saving Key to state for Ssl profile  (%s): %s", d.Id(), err)
 	}
 
 	if err := d.Set("mod_ssl_methods", obj.ModSslMethods); err != nil {
@@ -688,10 +706,6 @@ func resourceBigipLtmProfileClientSSLRead(d *schema.ResourceData, meta interface
 	}
 	if err := d.Set("proxy_ca_key", obj.ProxyCaKey); err != nil {
 		return fmt.Errorf("[DEBUG] Error saving Mode to state for Ssl profile  (%s): %s", d.Id(), err)
-	}
-
-	if err := d.Set("passphrase", obj.Passphrase); err != nil {
-		return fmt.Errorf("[DEBUG] Error saving Passphrase to state for Ssl profile  (%s): %s", d.Id(), err)
 	}
 
 	if err := d.Set("peer_cert_mode", obj.PeerCertMode); err != nil {
