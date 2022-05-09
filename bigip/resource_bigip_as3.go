@@ -14,7 +14,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/f5devcentral/go-bigip"
+	bigip "github.com/f5devcentral/go-bigip"
 	"github.com/f5devcentral/go-bigip/f5teem"
 	uuid "github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
@@ -45,7 +45,7 @@ func resourceBigipAs3() *schema.Resource {
 		Schema: map[string]*schema.Schema{
 			"as3_json": {
 				Type:        schema.TypeString,
-				Required:    true,
+				Optional:    true,
 				Description: "AS3 json",
 				StateFunc: func(v interface{}) string {
 					json, _ := structure.NormalizeJsonString(v)
@@ -112,12 +112,12 @@ func resourceBigipAs3() *schema.Resource {
 					_ = json.Unmarshal(resp, &jsonRef)
 					for key, value := range jsonRef {
 						if key == "class" && value != "AS3" {
-							errors = append(errors, fmt.Errorf("Json must have AS3 class"))
+							errors = append(errors, fmt.Errorf("JSON must have AS3 class"))
 						}
 						if rec, ok := value.(map[string]interface{}); ok && key == "declaration" {
 							for k, v := range rec {
 								if k == "class" && v != "ADC" {
-									errors = append(errors, fmt.Errorf("Json must have ADC class"))
+									errors = append(errors, fmt.Errorf("JSON must have ADC class"))
 								}
 							}
 						}
@@ -154,6 +154,12 @@ func resourceBigipAs3() *schema.Resource {
 				Optional:    true,
 				Description: "Name of Application",
 			},
+			"task_id": {
+				Type:        schema.TypeString,
+				Computed:    true,
+				Optional:    true,
+				Description: "ID of AS3 post declaration async task",
+			},
 		},
 	}
 }
@@ -181,7 +187,8 @@ func resourceBigipAs3Create(d *schema.ResourceData, meta interface{}) error {
 		return err
 	}
 	log.Printf("[INFO] Creating as3 config in bigip:%s", strTrimSpace)
-	err, successfulTenants := client.PostAs3Bigip(strTrimSpace, tenantList)
+	err, successfulTenants, taskID := client.PostAs3Bigip(strTrimSpace, tenantList)
+	log.Printf("[DEBUG] successfulTenants :%+v", successfulTenants)
 	if err != nil {
 		if successfulTenants == "" {
 			return fmt.Errorf("posting as3 config failed for tenants:(%s) with error: %v", tenantList, err)
@@ -212,7 +219,12 @@ func resourceBigipAs3Create(d *schema.ResourceData, meta interface{}) error {
 		}
 	}
 	log.Printf("[DEBUG] ID for resource :%+v", d.Get("tenant_list").(string))
-	d.SetId(d.Get("tenant_list").(string))
+	_ = d.Set("task_id", taskID)
+	if d.Get("tenant_list").(string) != "" {
+		d.SetId(d.Get("tenant_list").(string))
+	} else {
+		d.SetId("Common")
+	}
 	x++
 	return resourceBigipAs3Read(d, meta)
 }
@@ -222,24 +234,34 @@ func resourceBigipAs3Read(d *schema.ResourceData, meta interface{}) error {
 	name := d.Id()
 	applicationList := d.Get("application_list").(string)
 	log.Printf("[DEBUG] Tenants in AS3 get call : %s", name)
-	as3Resp, err := client.GetAs3(name, applicationList)
-	log.Printf("[DEBUG] AS3 json retreived from the GET call in Read function : %s", as3Resp)
-	if err != nil {
-		log.Printf("[ERROR] Unable to retrieve json ")
-		if err.Error() == "unexpected end of JSON input" {
-			log.Printf("[ERROR] %v", err)
+	if name != "Common" {
+		as3Resp, err := client.GetAs3(name, applicationList)
+		log.Printf("[DEBUG] AS3 json retreived from the GET call in Read function : %s", as3Resp)
+		if err != nil {
+			log.Printf("[ERROR] Unable to retrieve json ")
+			if err.Error() == "unexpected end of JSON input" {
+				log.Printf("[ERROR] %v", err)
+				d.SetId("")
+				return nil
+			}
+			return err
+		}
+		if as3Resp == "" {
+			log.Printf("[WARN] Json (%s) not found, removing from state", d.Id())
 			d.SetId("")
 			return nil
 		}
-		return err
+		_ = d.Set("as3_json", as3Resp)
+		_ = d.Set("tenant_list", name)
+	} else {
+		taskResponse, err := client.Getas3TaskResponse(d.Get("task_id").(string))
+		if err != nil {
+			d.SetId("")
+			return nil
+		}
+		_ = d.Set("as3_json", taskResponse)
+		_ = d.Set("tenant_list", name)
 	}
-	if as3Resp == "" {
-		log.Printf("[WARN] Json (%s) not found, removing from state", d.Id())
-		d.SetId("")
-		return nil
-	}
-	_ = d.Set("as3_json", as3Resp)
-	_ = d.Set("tenant_list", name)
 	return nil
 }
 
@@ -256,20 +278,32 @@ func resourceBigipAs3Exists(d *schema.ResourceData, meta interface{}) (bool, err
 			name = tenantFilter
 		}
 	}
-	as3Resp, err := client.GetAs3(name, applicationList)
-	if err != nil {
-		log.Printf("[ERROR] Unable to retrieve json ")
-		if err.Error() == "unexpected end of JSON input" {
-			log.Printf("[ERROR] %v", err)
+	if name != "Common" {
+		as3Resp, err := client.GetAs3(name, applicationList)
+		if err != nil {
+			log.Printf("[ERROR] Unable to retrieve json ")
+			if err.Error() == "unexpected end of JSON input" {
+				log.Printf("[ERROR] %v", err)
+				d.SetId("")
+				return false, nil
+			}
+			return false, err
+		}
+		log.Printf("[INFO] AS3 response Body:%+v", as3Resp)
+		if as3Resp == "" {
+			log.Printf("[WARN] Json (%s) not found, removing from state", d.Id())
+			return false, nil
+		}
+	} else {
+		taskResponse, err := client.Getas3TaskResponse(d.Get("task_id").(string))
+		if err != nil {
 			d.SetId("")
 			return false, nil
 		}
-		return false, err
-	}
-	log.Printf("[INFO] AS3 response Body:%+v", as3Resp)
-	if as3Resp == "" {
-		log.Printf("[WARN] Json (%s) not found, removing from state", d.Id())
-		return false, nil
+		if taskResponse == nil {
+			log.Printf("[WARN] Json (%s) not found, removing from state", d.Id())
+			return false, nil
+		}
 	}
 	return true, nil
 }
@@ -308,7 +342,8 @@ func resourceBigipAs3Update(d *schema.ResourceData, meta interface{}) error {
 	if err != nil {
 		return err
 	}
-	err, successfulTenants := client.PostAs3Bigip(strTrimSpace, tenantList)
+	err, successfulTenants, taskID := client.PostAs3Bigip(strTrimSpace, tenantList)
+	log.Printf("[DEBUG] successfulTenants :%+v", successfulTenants)
 	if err != nil {
 		if successfulTenants == "" {
 			return fmt.Errorf("Error updating json  %s: %v", tenantList, err)
@@ -318,6 +353,7 @@ func resourceBigipAs3Update(d *schema.ResourceData, meta interface{}) error {
 			log.Printf("%v", err)
 		}
 	}
+	_ = d.Set("task_id", taskID)
 	x++
 	return resourceBigipAs3Read(d, meta)
 }

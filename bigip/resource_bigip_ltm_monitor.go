@@ -12,17 +12,19 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/f5devcentral/go-bigip"
+	bigip "github.com/f5devcentral/go-bigip"
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 )
 
 var parentMonitors = map[string]bool{
 	"/Common/udp":           true,
 	"/Common/postgresql":    true,
+	"/Common/mysql":         true,
+	"/Common/mssql":         true,
 	"/Common/http":          true,
 	"/Common/https":         true,
 	"/Common/icmp":          true,
-	"/Common/gateway-icmp":  true,
+	"/Common/gateway_icmp":  true,
 	"/Common/tcp":           true,
 	"/Common/tcp-half-open": true,
 	"/Common/ftp":           true,
@@ -53,7 +55,7 @@ func resourceBigipLtmMonitor() *schema.Resource {
 				Required:     true,
 				ValidateFunc: validateParent,
 				ForceNew:     true,
-				Description:  "Existing monitor to inherit from. Must be one of /Common/http, /Common/https, /Common/icmp or /Common/gateway-icmp.",
+				Description:  "Existing monitor to inherit from. Must be one of /Common/http, /Common/https, /Common/icmp or /Common/gateway_icmp.",
 			},
 			"interval": {
 				Type:        schema.TypeInt,
@@ -184,6 +186,12 @@ func resourceBigipLtmMonitor() *schema.Resource {
 				Optional:    true,
 				Description: "the database in which your user is created",
 			},
+
+			"ssl_profile": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Description: "the ssl profile",
+			},
 		},
 	}
 }
@@ -191,14 +199,19 @@ func resourceBigipLtmMonitor() *schema.Resource {
 func resourceBigipLtmMonitorCreate(d *schema.ResourceData, meta interface{}) error {
 	client := meta.(*bigip.BigIP)
 	name := d.Get("name").(string)
+	parent := monitorParent(d.Get("parent").(string))
 
-	log.Println("[INFO] Creating LTM Monitor " + name + " :: " + monitorParent(d.Get("parent").(string)))
+	log.Println("[INFO] Creating LTM Monitor " + name + " :: " + parent)
 	pss := &bigip.Monitor{
 		Name: name,
 	}
 	config := getLtmMonitorConfig(d, pss)
 
-	err := client.CreateMonitor(config)
+	if strings.Contains(parent, "gateway") {
+		parent = "gateway-icmp"
+	}
+
+	err := client.CreateMonitor(config, parent)
 
 	if err != nil {
 		log.Printf("[ERROR] Unable to Create Monitor (%s) (%v) ", name, err)
@@ -251,6 +264,7 @@ func resourceBigipLtmMonitorRead(d *schema.ResourceData, meta interface{}) error
 			_ = d.Set("destination", m.Destination)
 			if matchresult {
 				_ = d.Set("compatibility", m.Compatibility)
+				_ = d.Set("ssl_profile", m.SSLProfile)
 			} else {
 				_ = d.Set("compatibility", d.Get("compatibility").(string))
 			}
@@ -305,7 +319,13 @@ func resourceBigipLtmMonitorUpdate(d *schema.ResourceData, meta interface{}) err
 	}
 	config := getLtmMonitorConfig(d, pss)
 
-	err := client.ModifyMonitor(name, monitorParent(d.Get("parent").(string)), config)
+	parent := monitorParent(d.Get("parent").(string))
+
+	if strings.Contains(parent, "gateway") {
+		parent = "gateway-icmp"
+	}
+
+	err := client.ModifyMonitor(name, parent, config)
 	if err != nil {
 		log.Printf("[ERROR] Unable to Update Monitor (%s) (%v) ", name, err)
 		return err
@@ -319,6 +339,11 @@ func resourceBigipLtmMonitorDelete(d *schema.ResourceData, meta interface{}) err
 	name := d.Id()
 	parent := monitorParent(d.Get("parent").(string))
 	log.Println("[INFO] Deleting monitor " + name + "::" + parent)
+
+	if strings.Contains(parent, "gateway") {
+		parent = "gateway-icmp"
+	}
+
 	err := client.DeleteMonitor(name, parent)
 	if err != nil {
 		log.Printf("[ERROR] Unable to Delete Monitor (%s) (%v) ", name, err)
@@ -334,7 +359,7 @@ func validateParent(v interface{}, k string) ([]string, []error) {
 		return nil, nil
 	}
 
-	return nil, []error{fmt.Errorf("parent must be one of /Common/udp, /Common/postgresql, /Common/http, /Common/https, /Common/icmp, /Common/gateway-icmp, /Common/tcp-half-open, /Common/tcp, /Common/ftp")}
+	return nil, []error{fmt.Errorf("parent must be one of /Common/udp, /Common/postgresql, /Common/mysql,/Common/mssql, /Common/http, /Common/https, /Common/icmp, /Common/gateway_icmp, /Common/tcp-half-open, /Common/tcp, /Common/ftp")}
 }
 
 func monitorParent(s string) string {
@@ -342,7 +367,7 @@ func monitorParent(s string) string {
 }
 
 func getLtmMonitorConfig(d *schema.ResourceData, config *bigip.Monitor) *bigip.Monitor {
-	config.ParentMonitor = monitorParent(d.Get("parent").(string))
+	config.ParentMonitor = d.Get("parent").(string)
 	config.Adaptive = d.Get("adaptive").(string)
 	config.AdaptiveLimit = d.Get("adaptive_limit").(int)
 	config.Compatibility = d.Get("compatibility").(string)
@@ -363,6 +388,6 @@ func getLtmMonitorConfig(d *schema.ResourceData, config *bigip.Monitor) *bigip.M
 	config.Username = d.Get("username").(string)
 	config.Password = d.Get("password").(string)
 	config.UpInterval = d.Get("up_interval").(int)
-	// config.Description
+	config.SSLProfile = d.Get("ssl_profile").(string)
 	return config
 }

@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/f5devcentral/go-bigip"
+	bigip "github.com/f5devcentral/go-bigip"
 	"github.com/hashicorp/terraform-plugin-sdk/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/terraform"
 )
@@ -106,6 +106,140 @@ func TestAccBigipNetselfip_import(t *testing.T) {
 			},
 		},
 	})
+}
+
+func TestAccBigipNetselfipPortlockdown(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck: func() {
+			testAcctPreCheck(t)
+		},
+		Providers:    testAccProviders,
+		CheckDestroy: testCheckselfipsDestroyed,
+		Steps: []resource.TestStep{
+			{
+				Config: testaccselfipPortLockdownParam("all"),
+				Check: resource.ComposeTestCheckFunc(
+					testCheckselfipExists(TEST_SELFIP_NAME),
+					resource.TestCheckResourceAttr("bigip_net_selfip.test-selfip", "port_lockdown.0", "all"),
+				),
+			},
+			{
+				Config: testaccselfipPortLockdownParam("protocol"),
+				Check: resource.ComposeTestCheckFunc(
+					testCheckselfipExists(TEST_SELFIP_NAME),
+					resource.TestCheckResourceAttr("bigip_net_selfip.test-selfip", "port_lockdown.0", "egp:0"),
+				),
+			},
+			{
+				Config: testaccselfipPortLockdownParam("tcp"),
+				Check: resource.ComposeTestCheckFunc(
+					testCheckselfipExists(TEST_SELFIP_NAME),
+					resource.TestCheckResourceAttr("bigip_net_selfip.test-selfip", "port_lockdown.0", "tcp:4040"),
+				),
+			},
+			{
+				Config: testaccselfipPortLockdownParam("udp"),
+				Check: resource.ComposeTestCheckFunc(
+					testCheckselfipExists(TEST_SELFIP_NAME),
+					resource.TestCheckResourceAttr("bigip_net_selfip.test-selfip", "port_lockdown.0", "udp:4040"),
+				),
+			},
+			{
+				Config: testaccselfipPortLockdownParam("default"),
+				Check: resource.ComposeTestCheckFunc(
+					testCheckselfipExists(TEST_SELFIP_NAME),
+					resource.TestCheckResourceAttr("bigip_net_selfip.test-selfip", "port_lockdown.0", "default"),
+				),
+			},
+			{
+				Config: testaccselfipPortLockdownParam("custom_default"),
+				Check: resource.ComposeTestCheckFunc(
+					testCheckselfipExists(TEST_SELFIP_NAME),
+					resource.TestCheckResourceAttr("bigip_net_selfip.test-selfip", "port_lockdown.0", "default"),
+					resource.TestCheckResourceAttr("bigip_net_selfip.test-selfip", "port_lockdown.1", "tcp:4040"),
+				),
+			},
+			{
+				Config: testaccselfipPortLockdownParam("none"),
+				Check: resource.ComposeTestCheckFunc(
+					testCheckselfipExists(TEST_SELFIP_NAME),
+					resource.TestCheckResourceAttr("bigip_net_selfip.test-selfip", "port_lockdown.0", "none"),
+				),
+			},
+		},
+	})
+}
+
+func testaccselfipPortLockdownParam(portLockdown string) string {
+	resPrefix := `
+	resource "bigip_net_vlan" "test-vlan" {
+      name = "` + TEST_VLAN_NAME + `"
+	  tag = 101
+	  interfaces {
+		vlanport = 1.1
+		tagged = true
+	  }
+	}
+	resource "bigip_net_selfip" "test-selfip" {
+	  name = "/Common/test-selfip"
+		ip   = "11.1.1.1/24"
+		vlan = "/Common/test-vlan"
+		depends_on = ["bigip_net_vlan.test-vlan"]
+	`
+	switch portLockdown {
+	case "all":
+		resPrefix = fmt.Sprintf(
+			`%s
+			port_lockdown = ["all"]
+			`,
+			resPrefix,
+		)
+	case "protocol":
+		resPrefix = fmt.Sprintf(
+			`%s
+			port_lockdown = ["egp:0"]
+			`,
+			resPrefix,
+		)
+	case "tcp":
+		resPrefix = fmt.Sprintf(
+			`%s
+			port_lockdown = ["tcp:4040"]
+			`,
+			resPrefix,
+		)
+	case "udp":
+		resPrefix = fmt.Sprintf(
+			`%s
+			port_lockdown = ["udp:4040"]
+			`,
+			resPrefix,
+		)
+	case "default":
+		resPrefix = fmt.Sprintf(
+			`%s
+			port_lockdown = ["default"]
+			`,
+			resPrefix,
+		)
+	case "custom_default":
+		resPrefix = fmt.Sprintf(
+			`%s
+			port_lockdown = ["default", "tcp:4040"]
+			`,
+			resPrefix,
+		)
+	case "none":
+		resPrefix = fmt.Sprintf(
+			`%s
+			port_lockdown = ["none"]
+			`,
+			resPrefix,
+		)
+	default:
+	}
+	return fmt.Sprintf(`%s
+		}`, resPrefix)
 }
 
 func testCheckselfipExists(name string) resource.TestCheckFunc {

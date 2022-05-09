@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/f5devcentral/go-bigip"
+	bigip "github.com/f5devcentral/go-bigip"
 	"github.com/hashicorp/terraform-plugin-sdk/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/terraform"
 )
@@ -22,6 +22,7 @@ var TestHttpsMonitorName = fmt.Sprintf("/%s/test-https-monitor", TEST_PARTITION)
 var TestFtpMonitorName = fmt.Sprintf("/%s/test-ftp-monitor", TEST_PARTITION)
 var TestUdpMonitorName = fmt.Sprintf("/%s/test-udp-monitor", TEST_PARTITION)
 var TestPostgresqlMonitorName = fmt.Sprintf("/%s/test-postgresql-monitor", TEST_PARTITION)
+var TestGatewayIcmpMonitorName = fmt.Sprintf("/%s/test-gateway", TEST_PARTITION)
 
 var TestMonitorResource = `
 resource "bigip_ltm_monitor" "test-monitor" {
@@ -52,6 +53,7 @@ resource "bigip_ltm_monitor" "test-https-monitor" {
 	reverse = "disabled"
 	destination       = "*:8008"
 	compatibility    = "enabled"
+	ssl_profile      = "/Common/serverssl"
 }
 `
 
@@ -93,6 +95,38 @@ resource "bigip_ltm_monitor" "test-postgresql-monitor" {
         database          = "postgres"
 }
 `
+
+var TestGatewayIcmpMonitorResource = `
+resource "bigip_ltm_monitor" "test-gateway-icmp-monitor" {
+  name        = "` + TestGatewayIcmpMonitorName + `"
+  parent      = "/Common/gateway_icmp"
+  timeout     = "16"
+  interval    = "5"
+  destination = "10.10.10.10:*"
+}
+`
+
+func TestAccBigipLtmMonitor_GatewayIcmpCreate(t *testing.T) {
+	resource.Test(t, resource.TestCase{
+		PreCheck: func() {
+			testAcctPreCheck(t)
+		},
+		Providers:    testAccProviders,
+		CheckDestroy: testMonitorsDestroyed,
+		Steps: []resource.TestStep{
+			{
+				Config: TestGatewayIcmpMonitorResource,
+				Check: resource.ComposeTestCheckFunc(
+					testCheckMonitorExists(TestGatewayIcmpMonitorName),
+					resource.TestCheckResourceAttr("bigip_ltm_monitor.test-gateway-icmp-monitor", "parent", "/Common/gateway_icmp"),
+					resource.TestCheckResourceAttr("bigip_ltm_monitor.test-gateway-icmp-monitor", "timeout", "16"),
+					resource.TestCheckResourceAttr("bigip_ltm_monitor.test-gateway-icmp-monitor", "interval", "5"),
+					resource.TestCheckResourceAttr("bigip_ltm_monitor.test-gateway-icmp-monitor", "destination", "10.10.10.10:*"),
+				),
+			},
+		},
+	})
+}
 
 func TestAccBigipLtmMonitor_HttpCreate(t *testing.T) {
 	t.Parallel()
@@ -169,6 +203,7 @@ func TestAccBigipLtmMonitor_HttpsCreate(t *testing.T) {
 					resource.TestCheckResourceAttr("bigip_ltm_monitor.test-https-monitor", "destination", "*:8008"),
 					resource.TestCheckResourceAttr("bigip_ltm_monitor.test-https-monitor", "compatibility", "enabled"),
 					resource.TestCheckResourceAttr("bigip_ltm_monitor.test-https-monitor", "reverse", "disabled"),
+					resource.TestCheckResourceAttr("bigip_ltm_monitor.test-https-monitor", "ssl_profile", "/Common/serverssl"),
 				),
 			},
 		},

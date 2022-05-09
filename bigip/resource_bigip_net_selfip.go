@@ -11,7 +11,7 @@ import (
 	"log"
 	"regexp"
 
-	"github.com/f5devcentral/go-bigip"
+	bigip "github.com/f5devcentral/go-bigip"
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
 )
 
@@ -53,6 +53,15 @@ func resourceBigipNetSelfIP() *schema.Resource {
 				Description: "Name of the traffic group, defaults to traffic-group-local-only if not specified",
 				Default:     "traffic-group-local-only",
 			},
+
+			"port_lockdown": {
+				Type: schema.TypeList,
+				Elem: &schema.Schema{
+					Type: schema.TypeString,
+				},
+				Optional:    true,
+				Description: "port lockdown",
+			},
 		},
 	}
 }
@@ -61,12 +70,15 @@ func resourceBigipNetSelfIPCreate(d *schema.ResourceData, meta interface{}) erro
 	client := meta.(*bigip.BigIP)
 
 	name := d.Get("name").(string)
-	ip := d.Get("ip").(string)
-	vlan := d.Get("vlan").(string)
+
+	pss := &bigip.SelfIP{
+		Name: name,
+	}
+	config := getNetSelfIPConfig(d, pss)
 
 	log.Printf("[DEBUG] Creating SelfIP %s", name)
 
-	err := client.CreateSelfIP(name, ip, vlan)
+	err := client.CreateSelfIP(config)
 
 	if err != nil {
 		return fmt.Errorf("Error creating SelfIP %s: %v", name, err)
@@ -74,7 +86,7 @@ func resourceBigipNetSelfIPCreate(d *schema.ResourceData, meta interface{}) erro
 
 	d.SetId(name)
 
-	return resourceBigipNetSelfIPUpdate(d, meta)
+	return resourceBigipNetSelfIPRead(d, meta)
 }
 
 func resourceBigipNetSelfIPRead(d *schema.ResourceData, meta interface{}) error {
@@ -99,6 +111,7 @@ func resourceBigipNetSelfIPRead(d *schema.ResourceData, meta interface{}) error 
 	// Extract Self IP address from "(selfip_address)[%route_domain](/mask)" groups 1 + 2
 	regex := regexp.MustCompile(`((?:[0-9]{1,3}\.){3}[0-9]{1,3})(?:\%\d+)?(\/\d+)`)
 	selfipAddress := regex.FindStringSubmatch(selfIP.Address)
+	log.Printf("[DEBUG] value of selfipAddress: %v", selfipAddress)
 	parsedSelfipAddress := selfipAddress[1] + selfipAddress[2]
 	d.Set("ip", parsedSelfipAddress)
 
@@ -117,14 +130,12 @@ func resourceBigipNetSelfIPUpdate(d *schema.ResourceData, meta interface{}) erro
 
 	log.Printf("[DEBUG] Updating SelfIP %s", name)
 
-	r := &bigip.SelfIP{
-		Name:         name,
-		Address:      d.Get("ip").(string),
-		Vlan:         d.Get("vlan").(string),
-		TrafficGroup: d.Get("traffic_group").(string),
+	pss := &bigip.SelfIP{
+		Name: name,
 	}
+	config := getNetSelfIPConfig(d, pss)
 
-	err := client.ModifySelfIP(name, r)
+	err := client.ModifySelfIP(name, config)
 	if err != nil {
 		return fmt.Errorf("Error modifying SelfIP %s: %v", name, err)
 	}
@@ -146,4 +157,27 @@ func resourceBigipNetSelfIPDelete(d *schema.ResourceData, meta interface{}) erro
 
 	d.SetId("")
 	return nil
+}
+
+func getNetSelfIPConfig(d *schema.ResourceData, config *bigip.SelfIP) *bigip.SelfIP {
+	var portLockdown interface{}
+	p := d.Get("port_lockdown").([]interface{})
+
+	if len(p) > 0 {
+		switch p[0] {
+		case "all":
+			portLockdown = "all"
+		case "none":
+			portLockdown = nil
+		default:
+			portLockdown = p
+		}
+	}
+
+	config.Address = d.Get("ip").(string)
+	config.Vlan = d.Get("vlan").(string)
+	config.TrafficGroup = d.Get("traffic_group").(string)
+	config.AllowService = portLockdown
+
+	return config
 }

@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/f5devcentral/go-bigip"
+	bigip "github.com/f5devcentral/go-bigip"
 	"github.com/f5devcentral/go-bigip/f5teem"
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
@@ -28,6 +28,7 @@ func resourceBigipFastTemplate() *schema.Resource {
 			"name": {
 				Type:        schema.TypeString,
 				Optional:    true,
+				ForceNew:    true,
 				Description: "Name of Fast template set",
 			},
 			"source": {
@@ -103,14 +104,13 @@ func resourceBigipFastRead(d *schema.ResourceData, meta interface{}) error {
 	log.Println("[INFO] Reading Fast Template Set : " + name)
 
 	template, err := client.GetTemplateSet(name)
-
-	log.Printf("[INFO] Fast Template Set content: %+v", template)
-	d.Set("name", template.Name)
-	d.Set("md5_hash", checksum)
-
 	if err != nil {
 		return err
 	}
+	log.Printf("[INFO] Fast Template Set content: %+v", template)
+	_ = d.Set("name", template.Name)
+	_ = d.Set("md5_hash", checksum)
+
 	return nil
 }
 

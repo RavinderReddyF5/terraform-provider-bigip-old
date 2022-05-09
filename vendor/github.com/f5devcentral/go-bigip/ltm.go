@@ -184,6 +184,13 @@ type Node struct {
 	} `json:"fqdn,omitempty"`
 }
 
+type ExternalDG struct {
+	Name             string `json:"name,omitempty"`
+	FullPath         string `json:"fullPath,omitempty"`
+	ExternalFileName string `json:"externalFileName,omitempty"`
+	Type             string `json:"type,omitempty"`
+}
+
 // DataGroups contains a list of data groups on the BIG-IP system.
 type DataGroups struct {
 	DataGroups []DataGroup `json:"items"`
@@ -566,6 +573,7 @@ type VirtualServer struct {
 	TranslateAddress           string    `json:"translateAddress,omitempty"`
 	TranslatePort              string    `json:"translatePort,omitempty"`
 	VlansEnabled               bool      `json:"vlansEnabled,omitempty"`
+	VlansDisabled              bool      `json:"vlansDisabled,omitempty"`
 	VSIndex                    int       `json:"vsIndex,omitempty"`
 	Vlans                      []string  `json:"vlans,omitempty"`
 	Rules                      []string  `json:"rules,omitempty"`
@@ -1013,42 +1021,8 @@ type Monitors struct {
 
 // Monitor contains information about each individual monitor.
 type Monitor struct {
-	Name      string
-	Partition string
-	//DefaultsFrom   string
-	FullPath       string
-	Generation     int
-	ParentMonitor  string
-	Description    string
-	Destination    string
-	Interval       int
-	IPDSCP         int
-	ManualResume   string
-	Password       string
-	ReceiveString  string
-	ReceiveDisable string
-	Reverse        string
-	SendString     string
-	TimeUntilUp    int
-	Timeout        int
-	Transparent    string
-	UpInterval     int
-	Username       string
-	Compatibility  string
-	Filename       string
-	Mode           string
-	Adaptive       string
-	AdaptiveLimit  int
-	Database       string
-	Count          string
-	RecvRow        string
-	RecvColumn     string
-}
-
-type monitorDTO struct {
-	Name      string `json:"name,omitempty"`
-	Partition string `json:"partition,omitempty"`
-	//DefaultsFrom   string `json:"defaultsFrom,omitempty"`
+	Name           string `json:"name,omitempty"`
+	Partition      string `json:"partition,omitempty"`
 	FullPath       string `json:"fullPath,omitempty"`
 	Generation     int    `json:"generation,omitempty"`
 	ParentMonitor  string `json:"defaultsFrom,omitempty"`
@@ -1076,6 +1050,40 @@ type monitorDTO struct {
 	Count          string `json:"count,omitempty"`
 	RecvRow        string `json:"recvRow,omitempty"`
 	RecvColumn     string `json:"recvColumn,omitempty"`
+	SSLProfile     string `json:"sslProfile,omitempty"`
+}
+
+type monitorDTO struct {
+	Name           string `json:"name,omitempty"`
+	Partition      string `json:"partition,omitempty"`
+	FullPath       string `json:"fullPath,omitempty"`
+	Generation     int    `json:"generation,omitempty"`
+	ParentMonitor  string `json:"defaultsFrom,omitempty"`
+	Description    string `json:"description,omitempty"`
+	Destination    string `json:"destination,omitempty"`
+	Database       string `json:"database,omitempty"`
+	Interval       int    `json:"interval,omitempty"`
+	IPDSCP         int    `json:"ipDscp,omitempty"`
+	ManualResume   string `json:"manualResume,omitempty"`
+	Password       string `json:"password,omitempty"`
+	ReceiveString  string `json:"recv,omitempty"`
+	ReceiveDisable string `json:"recvDisable,omitempty"`
+	Reverse        string `json:"reverse,omitempty"`
+	SendString     string `json:"send,omitempty"`
+	TimeUntilUp    int    `json:"timeUntilUp,omitempty"`
+	Timeout        int    `json:"timeout,omitempty"`
+	Transparent    string `json:"transparent,omitempty"`
+	UpInterval     int    `json:"upInterval,omitempty"`
+	Username       string `json:"username,omitempty"`
+	Compatibility  string `json:"compatibility,omitempty"`
+	Filename       string `json:"filename,omitempty"`
+	Mode           string `json:"mode,omitempty"`
+	Adaptive       string `json:"adaptive,omitempty"`
+	AdaptiveLimit  int    `json:"adaptiveLimit,omitempty"`
+	Count          string `json:"count,omitempty"`
+	RecvRow        string `json:"recvRow,omitempty"`
+	RecvColumn     string `json:"recvColumn,omitempty"`
+	SSLProfile     string `json:"sslProfile,omitempty"`
 }
 
 type Profiles struct {
@@ -1523,6 +1531,7 @@ type Snat struct {
 	Translation   string
 	Snatpool      string
 	VlansDisabled bool
+	VlansEnabled  bool
 	Vlans         []string
 	Origins       []Originsrecord
 }
@@ -1533,11 +1542,12 @@ type snatDTO struct {
 	FullPath      string   `json:"fullPath,omitempty"`
 	AutoLasthop   string   `json:"autoLastHop,omitempty"`
 	Mirror        string   `json:"mirror,omitempty"`
-	SourcePort    string   `json:"sourePort,omitempty"`
+	SourcePort    string   `json:"sourcePort,omitempty"`
 	Translation   string   `json:"translation,omitempty"`
 	Snatpool      string   `json:"snatpool,omitempty"`
 	Vlans         []string `json:"vlans,omitempty"`
-	VlansDisabled bool     `json:"vlansDisabled,omitempty" bool:"disabled"`
+	VlansDisabled bool     `json:"vlansDisabled,omitempty"`
+	VlansEnabled  bool     `json:"vlansEnabled,omitempty"`
 	Origins       struct {
 		Items []Originsrecord `json:"items,omitempty"`
 	} `json:"originsReference,omitempty"`
@@ -1562,6 +1572,7 @@ func (p *Snat) MarshalJSON() ([]byte, error) {
 		Translation:   p.Translation,
 		Snatpool:      p.Snatpool,
 		VlansDisabled: p.VlansDisabled,
+		VlansEnabled:  p.VlansEnabled,
 		Vlans:         p.Vlans,
 		Origins: struct {
 			Items []Originsrecord `json:"items,omitempty"`
@@ -1585,6 +1596,7 @@ func (p *Snat) UnmarshalJSON(b []byte) error {
 	p.Translation = dto.Translation
 	p.Snatpool = dto.Snatpool
 	p.VlansDisabled = dto.VlansDisabled
+	p.VlansEnabled = dto.VlansEnabled
 	p.Vlans = dto.Vlans
 	p.Origins = dto.Origins.Items
 
@@ -1839,6 +1851,7 @@ const (
 	uriIRule          = "rule"
 	uriDatagroup      = "data-group"
 	uriInternal       = "internal"
+	uriExternal       = "external"
 	uriPolicy         = "policy"
 	uriOneconnect     = "one-connect"
 	uriPersistence    = "persistence"
@@ -2171,9 +2184,20 @@ func (b *BigIP) AddInternalDataGroup(config *DataGroup) error {
 	return b.post(config, uriLtm, uriDatagroup, uriInternal)
 }
 
+func (b *BigIP) AddExternalDataGroup(config *ExternalDG) error {
+	return b.post(config, uriLtm, uriDatagroup, uriExternal)
+}
+
+func (b *BigIP) ModifyExternalDataGroup(config *ExternalDG) error {
+	return b.patch(config, uriLtm, uriDatagroup, uriExternal, config.FullPath)
+}
+
 func (b *BigIP) DeleteInternalDataGroup(name string) error {
 	return b.delete(uriLtm, uriDatagroup, uriInternal, name)
+}
 
+func (b *BigIP) DeleteExternalDataGroup(name string) error {
+	return b.delete(uriLtm, uriDatagroup, uriExternal, name)
 }
 
 // Modify a named internal data group, REPLACING all the records
@@ -2192,6 +2216,19 @@ func (b *BigIP) GetInternalDataGroup(name string) (*DataGroup, error) {
 		return nil, nil
 	}
 
+	return &datagroup, nil
+}
+
+// Get an external data group by name, returns nil if the data group does not exist
+func (b *BigIP) GetExternalDataGroup(name string) (*ExternalDG, error) {
+	var datagroup ExternalDG
+	err, ok := b.getForEntity(&datagroup, uriLtm, uriDatagroup, uriExternal, name)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return nil, nil
+	}
 	return &datagroup, nil
 }
 
@@ -2520,7 +2557,7 @@ func (b *BigIP) DeleteVirtualAddress(vaddr string) error {
 // Monitors returns a list of all HTTP, HTTPS, Gateway ICMP, ICMP, and TCP monitors.
 func (b *BigIP) Monitors() ([]Monitor, error) {
 	var monitors []Monitor
-	monitorUris := []string{"http", "https", "icmp", "gateway-icmp", "tcp", "tcp-half-open", "ftp", "udp", "postgresql"}
+	monitorUris := []string{"http", "https", "icmp", "gateway-icmp", "tcp", "tcp-half-open", "ftp", "udp", "postgresql", "mysql", "mssql"}
 
 	for _, name := range monitorUris {
 		var m Monitors
@@ -2541,11 +2578,10 @@ func (b *BigIP) Monitors() ([]Monitor, error) {
 //func (b *BigIP) CreateMonitor(config *Monitor) error
 //This Function expects Monitor struct type as input,posts the config on to BIGIP to configure LTM Monitor Objects
 //Returns Nil If Post is Success,err in case Failure
-func (b *BigIP) CreateMonitor(config *Monitor) error {
+func (b *BigIP) CreateMonitor(config *Monitor, parent string) error {
 	//config := &Monitor{
 	//	Name:           name,
 	//	ParentMonitor:  parent,
-	//	DefaultsFrom:   defaults_from,
 	//	Interval:       interval,
 	//	Timeout:        timeout,
 	//	SendString:     send,
@@ -2554,21 +2590,12 @@ func (b *BigIP) CreateMonitor(config *Monitor) error {
 	//	Compatibility:  compatibility,
 	//	Destination:    destination,
 	//}
-	return b.AddMonitor(config)
+	return b.AddMonitor(config, parent)
 }
 
 // Create a monitor by supplying a config
-func (b *BigIP) AddMonitor(config *Monitor) error {
-	if strings.Contains(config.ParentMonitor, "gateway") {
-		config.ParentMonitor = "gatewayIcmp"
-	}
-	if strings.Contains(config.ParentMonitor, "tcp-half-open") {
-		config.ParentMonitor = "tcp-half-open"
-	}
-	if strings.Contains(config.ParentMonitor, "ftp") {
-		config.ParentMonitor = "ftp"
-	}
-	return b.post(config, uriLtm, uriMonitor, config.ParentMonitor)
+func (b *BigIP) AddMonitor(config *Monitor, parent string) error {
+	return b.post(config, uriLtm, uriMonitor, parent)
 }
 
 // GetVirtualServer retrieves a monitor by name. Returns nil if the monitor does not exist
@@ -2595,16 +2622,6 @@ func (b *BigIP) DeleteMonitor(name, parent string) error {
 // one of "http", "https", "icmp", "gateway icmp", or "tcp". Fields that
 // can be modified are referenced in the Monitor struct.
 func (b *BigIP) ModifyMonitor(name, parent string, config *Monitor) error {
-	if strings.Contains(config.ParentMonitor, "gateway") {
-		config.ParentMonitor = "gatewayIcmp"
-	}
-	if strings.Contains(config.ParentMonitor, "tcp-half-open") {
-		config.ParentMonitor = "tcp-half-open"
-	}
-	if strings.Contains(config.ParentMonitor, "ftp") {
-		config.ParentMonitor = "ftp"
-	}
-
 	return b.put(config, uriLtm, uriMonitor, parent, name)
 }
 
@@ -3114,7 +3131,6 @@ func (b *BigIP) AddRecords(name, rname, data string) error {
 	return b.post(snat, uriLtm, uriSnat)
 } */
 func (b *BigIP) CreateSnat(p *Snat) error {
-	log.Println(" what is the complete payload    ", p)
 	return b.post(p, uriLtm, uriSnat)
 }
 
@@ -3141,7 +3157,7 @@ func (b *BigIP) DeleteSnat(name string) error {
 }
 
 func (b *BigIP) UpdateSnat(name string, p *Snat) error {
-	return b.put(p, uriLtm, uriSnat, name)
+	return b.patch(p, uriLtm, uriSnat, name)
 }
 
 // Snats returns a list of snat

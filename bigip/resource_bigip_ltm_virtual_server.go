@@ -14,7 +14,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/f5devcentral/go-bigip"
+	bigip "github.com/f5devcentral/go-bigip"
 	"github.com/f5devcentral/go-bigip/f5teem"
 	"github.com/google/uuid"
 	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
@@ -188,8 +188,8 @@ func resourceBigipLtmVirtualServer() *schema.Resource {
 			"vlans_enabled": {
 				Type:        schema.TypeBool,
 				Optional:    true,
-				Computed:    true,
-				Description: "Enables the virtual server on the VLANs specified by the VLANs option.",
+				Default:     false,
+				Description: "Enables the virtual server on the VLANs specified by the VLANs option. By default it is set to false",
 			},
 		},
 	}
@@ -586,8 +586,13 @@ func resourceBigipLtmVirtualServerUpdate(d *schema.ResourceData, meta interface{
 		},
 		TranslatePort:    d.Get("translate_port").(string),
 		TranslateAddress: d.Get("translate_address").(string),
-		VlansEnabled:     d.Get("vlans_enabled").(bool),
 	}
+	if d.Get("vlans_enabled").(bool) {
+		vs.VlansEnabled = d.Get("vlans_enabled").(bool)
+	} else {
+		vs.VlansDisabled = true
+	}
+
 	if d.Get("state").(string) == "disabled" {
 		vs.Disabled = true
 	}
