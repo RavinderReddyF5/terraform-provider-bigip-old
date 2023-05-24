@@ -127,6 +127,7 @@ type Filetype struct {
 	RequestLength          int    `json:"requestLength,omitempty"`
 	ResponseCheck          bool   `json:"responseCheck,omitempty"`
 	Type                   string `json:"type,omitempty"`
+	WildcardOrder          int    `json:"wildcardOrder,omitempty"`
 	URLLength              int    `json:"urlLength,omitempty"`
 }
 
@@ -163,6 +164,11 @@ type SignatureType struct {
 	Type string `json:"type,omitempty"`
 }
 
+type HostName struct {
+	IncludeSubdomains bool   `json:"includeSubdomains,omitempty"`
+	Name              string `json:"name,omitempty"`
+}
+
 type WafSignaturesets struct {
 	WafSignaturesets []SignatureSet `json:"items"`
 }
@@ -196,6 +202,13 @@ type PolicyStruct struct {
 	Policy        WafPolicy     `json:"policy,omitempty"`
 	Modifications []interface{} `json:"modifications,omitempty"`
 }
+type PolicyStructobject struct {
+	Policy        interface{}   `json:"policy,omitempty"`
+	Modifications []interface{} `json:"modifications,omitempty"`
+}
+type ServerTech struct {
+	ServerTechnologyName string `json:"serverTechnologyName,omitempty"`
+}
 
 type WafPolicy struct {
 	Name        string `json:"name,omitempty"`
@@ -205,20 +218,19 @@ type WafPolicy struct {
 	ID          string `json:"id,omitempty"`
 	Template    struct {
 		Name string `json:"name,omitempty"`
+		Link string `json:"link,omitempty"`
 	} `json:"template,omitempty"`
-	HasParent           bool        `json:"hasParent,omitempty"`
-	ApplicationLanguage string      `json:"applicationLanguage,omitempty"`
-	EnablePassiveMode   bool        `json:"enablePassiveMode,omitempty"`
-	ProtocolIndependent bool        `json:"protocolIndependent,omitempty"`
-	CaseInsensitive     bool        `json:"caseInsensitive,omitempty"`
-	EnforcementMode     string      `json:"enforcementMode,omitempty"`
-	Type                string      `json:"type,omitempty"`
-	Parameters          []Parameter `json:"parameters,omitempty"`
-	ServerTechnologies  []struct {
-		ServerTechnologyName string `json:"serverTechnologyName,omitempty"`
-	} `json:"server-technologies,omitempty"`
-	Urls          []WafUrlJson `json:"urls,omitempty"`
-	PolicyBuilder struct {
+	HasParent           bool         `json:"hasParent,omitempty"`
+	ApplicationLanguage string       `json:"applicationLanguage,omitempty"`
+	EnablePassiveMode   bool         `json:"enablePassiveMode,omitempty"`
+	ProtocolIndependent bool         `json:"protocolIndependent,omitempty"`
+	CaseInsensitive     bool         `json:"caseInsensitive,omitempty"`
+	EnforcementMode     string       `json:"enforcementMode,omitempty"`
+	Type                string       `json:"type,omitempty"`
+	Parameters          []Parameter  `json:"parameters,omitempty"`
+	ServerTechnologies  []ServerTech `json:"server-technologies,omitempty"`
+	Urls                []WafUrlJson `json:"urls,omitempty"`
+	PolicyBuilder       struct {
 		LearningMode string `json:"learningMode,omitempty"`
 	} `json:"policy-builder,omitempty"`
 	SignatureSettings struct {
@@ -239,6 +251,24 @@ type WafPolicy struct {
 	OpenAPIFiles   []OpenApiLink  `json:"open-api-files,omitempty"`
 	SignatureSets  []SignatureSet `json:"signature-sets,omitempty"`
 	VirtualServers []interface{}  `json:"virtualServers,omitempty"`
+	DataGuard      struct {
+		Enabled         bool   `json:"enabled,omitempty"`
+		EnforcementMode string `json:"enforcementMode,omitempty"`
+	} `json:"data-guard,omitempty"`
+	IpIntelligence struct {
+		Enabled bool `json:"enabled,omitempty"`
+	} `json:"ip-intelligence,omitempty"`
+	HostNames []HostName `json:"host-names,omitempty"`
+	General   struct {
+		AllowedResponseCodes           []int  `json:"allowedResponseCodes,omitempty"`
+		EnableEventCorrelation         bool   `json:"enableEventCorrelation,omitempty"`
+		EnforcementReadinessPeriod     int    `json:"enforcementReadinessPeriod,omitempty"`
+		MaskCreditCardNumbersInRequest bool   `json:"maskCreditCardNumbersInRequest,omitempty"`
+		PathParameterHandling          string `json:"pathParameterHandling,omitempty"`
+		TriggerAsmIruleEvent           string `json:"triggerAsmIruleEvent,omitempty"`
+		TrustXff                       bool   `json:"trustXff,omitempty"`
+		UseDynamicSessionIdInUrl       bool   `json:"useDynamicSessionIdInUrl,omitempty"`
+	} `json:"general,omitempty"`
 }
 
 type ImportStatus struct {
@@ -292,6 +322,12 @@ type Parameter struct {
 	PerformStaging                 bool                     `json:"performStaging,omitempty"`
 	SensitiveParameter             bool                     `json:"sensitiveParameter,omitempty"`
 	SignatureOverrides             []map[string]interface{} `json:"signatureOverrides,omitempty"`
+	URL                            struct {
+		Method   string `json:"method,omitempty"`
+		Name     string `json:"name,omitempty"`
+		Protocol string `json:"protocol,omitempty"`
+		Type     string `json:"type,omitempty"`
+	} `json:"url,omitempty"`
 }
 
 func (b *BigIP) GetWafSignature(signatureid int) (*Signatures, error) {
@@ -361,7 +397,7 @@ func (b *BigIP) GetWafPolicyQuery(wafPolicyName string, partition string) (*WafP
 
 func (b *BigIP) GetWafPolicy(policyID string) (*WafPolicy, error) {
 	var wafPolicy WafPolicy
-	log.Printf("WAF policy get with ID:%+v", policyID)
+	log.Printf("[DEBUG] WAF policy get with ID:%+v", policyID)
 	err, _ := b.getForEntity(&wafPolicy, uriMgmt, uriTm, uriAsm, uriWafPol, policyID)
 	if err != nil {
 		return nil, err
@@ -376,7 +412,7 @@ func (b *BigIP) ExportPolicy(policyID string) (*PolicyStruct, error) {
 	exportPayload.Inline = true
 	exportPayload.PolicyReference.Link = fmt.Sprintf("https://localhost/mgmt/tm/asm/policies/%s", policyID)
 
-	log.Printf("payload:%+v", exportPayload)
+	log.Printf("[INFO]payload:%+v", exportPayload)
 	resp, err := b.postReq(exportPayload, uriMgmt, uriTm, uriAsm, uriTasks, uriExportpolicy)
 	if err != nil {
 		return nil, err
@@ -399,6 +435,31 @@ func (b *BigIP) ExportPolicy(policyID string) (*PolicyStruct, error) {
 	}
 
 	return &exportData, nil
+}
+
+func (b *BigIP) ExportPolicyFull(policyID string) (*string, error) {
+	//export JSON policy
+	var exportPayload ExportPayload
+	exportPayload.Format = "json"
+	exportPayload.Inline = true
+	exportPayload.PolicyReference.Link = fmt.Sprintf("https://localhost/mgmt/tm/asm/policies/%s", policyID)
+
+	log.Printf("[INFO] payload:%+v", exportPayload)
+	resp, err := b.postReq(exportPayload, uriMgmt, uriTm, uriAsm, uriTasks, uriExportpolicy)
+	if err != nil {
+		return nil, err
+	}
+	var taskStatus ImportStatus
+	err = json.Unmarshal(resp, &taskStatus)
+	if err != nil {
+		return nil, err
+	}
+	//check export status
+	exportStatus, err := b.GetExportStatus(taskStatus.ID)
+	if err != nil {
+		return nil, err
+	}
+	return &exportStatus.Result.File, nil
 }
 
 func (b *BigIP) GetExportStatus(taskId string) (*ImportStatus, error) {
@@ -517,7 +578,7 @@ func (b *BigIP) ImportAwafJson(awafPolicyName, awafJsonContent, policyID string)
 			//FullPath: awafPolicyName,
 			PolicyReference: policyPath,
 		}
-		log.Printf("import policy:%+v", policy)
+		log.Printf("[DEBUG] Import policy:%+v", policy)
 		resp, err := b.postReq(policy, uriMgmt, uriTm, uriAsm, uriTasks, uriImportpolicy)
 		if err != nil {
 			return "", err
@@ -529,7 +590,7 @@ func (b *BigIP) ImportAwafJson(awafPolicyName, awafJsonContent, policyID string)
 		}
 		return taskStatus.ID, nil
 	}
-	log.Printf("import policy:%+v", applywaf)
+	log.Printf("[DEBUG] Import policy:%+v", applywaf)
 	resp, err := b.postReq(applywaf, uriMgmt, uriTm, uriAsm, uriTasks, uriImportpolicy)
 	if err != nil {
 		return "", err

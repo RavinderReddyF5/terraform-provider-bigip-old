@@ -40,6 +40,8 @@ resource "bigip_ltm_profile_server_ssl" "test-ServerSsl" {
 
 * `ciphers` - (Optional) Specifies the list of ciphers that the system supports. When creating a new profile, the default cipher list is provided by the parent profile.
 
+* `cipher_group` - (Optional) Specifies the cipher group for the SSL server profile. It is mutually exclusive with the argument, `ciphers`. The default value is `none`.
+
 * `peer_cert_mode` - (Optional) Specifies the way the system handles client certificates.When ignore, specifies that the system ignores certificates from client systems.When require, specifies that the system requires a client to present a valid certificate.When request, specifies that the system requests a valid certificate from a client but always authenticate the client.
 
 * `authenticate` - (Optional) Specifies the frequency of server authentication for an SSL session.When `once`,specifies that the system authenticates the server once for an SSL session.
@@ -103,3 +105,11 @@ There can be only one SSL profile with this setting enabled.
       or in place of the identity in the subject field of the certificate.
 
 * `c3d-cert-lifespan` Specifies the lifespan of the certificate generated using the SSL client certificate constrained delegation. The default value is 24.
+
+## Importing
+An existing server-ssl profile can be imported into this resource by supplying server-ssl profile Name in `full path` as `id`.
+An example is below:
+```sh
+$ terraform import bigip_ltm_profile_server_ssl.test-ServerSsl-import /Common/test-ServerSsl
+
+```

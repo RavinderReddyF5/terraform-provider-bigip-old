@@ -10,9 +10,8 @@ import (
 	"testing"
 
 	bigip "github.com/f5devcentral/go-bigip"
-	"github.com/hashicorp/terraform-plugin-sdk/helper/resource"
-	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
-	"github.com/hashicorp/terraform-plugin-sdk/terraform"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 )
 
 var resNameserver = "bigip_ltm_profile_server_ssl"
@@ -20,7 +19,7 @@ var resNameserver = "bigip_ltm_profile_server_ssl"
 func TestAccBigipLtmProfileServerSsl_Default_create(t *testing.T) {
 	t.Parallel()
 	var instName = "test-ServerSsl"
-	var instFullName = fmt.Sprintf("/%s/%s", TEST_PARTITION, instName)
+	var instFullName = fmt.Sprintf("/%s/%s", TestPartition, instName)
 	resFullName := fmt.Sprintf("%s.%s", resNameserver, instName)
 
 	resource.Test(t, resource.TestCase{
@@ -42,12 +41,12 @@ func TestAccBigipLtmProfileServerSsl_Default_create(t *testing.T) {
 					resource.TestCheckResourceAttr(resFullName, "authenticate_depth", "9"),
 					resource.TestCheckResourceAttr(resFullName, "cache_size", "262144"),
 					resource.TestCheckResourceAttr(resFullName, "ca_file", "none"),
-					resource.TestCheckResourceAttr(resFullName, "cert", "none"),
+					resource.TestCheckResourceAttr(resFullName, "cert", "/Common/default.crt"),
+					resource.TestCheckResourceAttr(resFullName, "key", "/Common/default.key"),
 					resource.TestCheckResourceAttr(resFullName, "chain", "none"),
 					resource.TestCheckResourceAttr(resFullName, "ciphers", "DEFAULT"),
 					resource.TestCheckResourceAttr(resFullName, "expire_cert_response_control", "drop"),
 					resource.TestCheckResourceAttr(resFullName, "handshake_timeout", "10"),
-					resource.TestCheckResourceAttr(resFullName, "key", "none"),
 					resource.TestCheckResourceAttr(resFullName, "mod_ssl_methods", "disabled"),
 					resource.TestCheckResourceAttr(resFullName, "mode", "enabled"),
 					resource.TestCheckResourceAttr(resFullName, "peer_cert_mode", "ignore"),
@@ -78,7 +77,7 @@ func TestAccBigipLtmProfileServerSsl_Default_create(t *testing.T) {
 func TestAccBigipLtmProfileServerSsl_UpdateAuthenticate(t *testing.T) {
 	t.Parallel()
 	var instName = "test-ServerSsl-UpdateAuthenticate"
-	var instFullName = fmt.Sprintf("/%s/%s", TEST_PARTITION, instName)
+	var instFullName = fmt.Sprintf("/%s/%s", TestPartition, instName)
 	resFullName := fmt.Sprintf("%s.%s", resNameserver, instName)
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() {
@@ -115,7 +114,7 @@ func TestAccBigipLtmProfileServerSsl_UpdateAuthenticate(t *testing.T) {
 func TestAccBigipLtmProfileServerSsl_UpdateTmoptions(t *testing.T) {
 	t.Parallel()
 	var instName = "test-ServerSsl-UpdateTmoptions"
-	var instFullName = fmt.Sprintf("/%s/%s", TEST_PARTITION, instName)
+	var instFullName = fmt.Sprintf("/%s/%s", TestPartition, instName)
 	resFullName := fmt.Sprintf("%s.%s", resNameserver, instName)
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() {
@@ -131,8 +130,8 @@ func TestAccBigipLtmProfileServerSsl_UpdateTmoptions(t *testing.T) {
 					resource.TestCheckResourceAttr(resFullName, "name", instFullName),
 					resource.TestCheckResourceAttr(resFullName, "partition", "Common"),
 					resource.TestCheckResourceAttr(resFullName, "authenticate", "once"),
-					resource.TestCheckResourceAttr(resFullName, fmt.Sprintf("tm_options.%d", schema.HashString("dont-insert-empty-fragments")), "dont-insert-empty-fragments"),
-					resource.TestCheckResourceAttr(resFullName, fmt.Sprintf("tm_options.%d", schema.HashString("no-tlsv1.3")), "no-tlsv1.3"),
+					resource.TestCheckTypeSetElemAttr(resFullName, "tm_options.*", "dont-insert-empty-fragments"),
+					resource.TestCheckTypeSetElemAttr(resFullName, "tm_options.*", "no-tlsv1.3"),
 					resource.TestCheckResourceAttr(resFullName, "defaults_from", "/Common/serverssl"),
 				),
 			},
@@ -143,8 +142,44 @@ func TestAccBigipLtmProfileServerSsl_UpdateTmoptions(t *testing.T) {
 					resource.TestCheckResourceAttr(resFullName, "name", instFullName),
 					resource.TestCheckResourceAttr(resFullName, "partition", "Common"),
 					resource.TestCheckResourceAttr(resFullName, "authenticate", "once"),
-					resource.TestCheckResourceAttr(resFullName, fmt.Sprintf("tm_options.%d", schema.HashString("no-tlsv1.3")), "no-tlsv1.3"),
+					resource.TestCheckTypeSetElemAttr(resFullName, "tm_options.*", "no-tlsv1.3"),
 					resource.TestCheckResourceAttr(resFullName, "defaults_from", "/Common/serverssl"),
+				),
+			},
+		},
+	})
+}
+
+func TestAccBigipLtmProfileServerSsl_UpdateCipherGroup(t *testing.T) {
+	t.Parallel()
+	var instName = "test-ServerSsl-UpdateCipherGroup"
+	var instFullName = fmt.Sprintf("/%s/%s", TestPartition, instName)
+	resFullName := fmt.Sprintf("%s.%s", resNameserver, instName)
+	resource.Test(t, resource.TestCase{
+		PreCheck: func() {
+			testAcctPreCheck(t)
+		},
+		Providers:    testAccProviders,
+		CheckDestroy: testCheckServerSslDestroyed,
+		Steps: []resource.TestStep{
+			{
+				Config: testaccbigipltmprofileserversslDefaultcreate(instName),
+				Check: resource.ComposeTestCheckFunc(
+					testCheckServerSslExists(instFullName),
+					resource.TestCheckResourceAttr(resFullName, "name", instFullName),
+					resource.TestCheckResourceAttr(resFullName, "partition", "Common"),
+					resource.TestCheckResourceAttr(resFullName, "defaults_from", "/Common/serverssl"),
+					resource.TestCheckResourceAttr(resFullName, "cipher_group", "none"),
+				),
+			},
+			{
+				Config: testAccBigipLtmProfileServerSsl_UpdateParam(instName, "cipher_group"),
+				Check: resource.ComposeTestCheckFunc(
+					testCheckServerSslExists(instFullName),
+					resource.TestCheckResourceAttr(resFullName, "name", instFullName),
+					resource.TestCheckResourceAttr(resFullName, "partition", "Common"),
+					resource.TestCheckResourceAttr(resFullName, "defaults_from", "/Common/serverssl"),
+					resource.TestCheckResourceAttr(resFullName, "cipher_group", "/Common/f5-aes"),
 				),
 			},
 		},
@@ -153,7 +188,7 @@ func TestAccBigipLtmProfileServerSsl_UpdateTmoptions(t *testing.T) {
 
 func TestAccBigipLtmProfileServerSsl_import(t *testing.T) {
 	var instName = "test-ServerSsl"
-	var instFullName = fmt.Sprintf("/%s/%s", TEST_PARTITION, instName)
+	var instFullName = fmt.Sprintf("/%s/%s", TestPartition, instName)
 	resource.Test(t, resource.TestCase{
 		PreCheck: func() {
 			testAcctPreCheck(t)
@@ -229,6 +264,9 @@ func testAccBigipLtmProfileServerSsl_UpdateParam(instName, updateParam string) s
 	case "tm_options":
 		resPrefix = fmt.Sprintf(`%s
 			  tm_options = ["no-tlsv1.3"]`, resPrefix)
+	case "cipher_group":
+		resPrefix = fmt.Sprintf(`%s
+			  cipher_group = "/Common/f5-aes"`, resPrefix)
 	}
 	return fmt.Sprintf(`%s
 		}`, resPrefix)

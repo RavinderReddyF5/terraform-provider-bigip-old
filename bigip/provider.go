@@ -7,18 +7,22 @@ If a copy of the MPL was not distributed with this file,You can obtain one at ht
 package bigip
 
 import (
+	"context"
+	"crypto/sha1"
+	"encoding/hex"
 	"fmt"
 	"reflect"
 	"regexp"
 	"strings"
 
-	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
-	"github.com/hashicorp/terraform-plugin-sdk/terraform"
+	bigip "github.com/f5devcentral/go-bigip"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
 
-func Provider() terraform.ResourceProvider {
+func Provider() *schema.Provider {
 	p := &schema.Provider{
 		Schema: map[string]*schema.Schema{
 			"address": {
@@ -54,9 +58,20 @@ func Provider() terraform.ResourceProvider {
 			"token_auth": {
 				Type:        schema.TypeBool,
 				Optional:    true,
-				Default:     false,
 				Description: "Enable to use an external authentication source (LDAP, TACACS, etc)",
-				DefaultFunc: schema.EnvDefaultFunc("BIGIP_TOKEN_AUTH", nil),
+				DefaultFunc: schema.EnvDefaultFunc("BIGIP_TOKEN_AUTH", true),
+			},
+			"validate_certs_disable": {
+				Type:        schema.TypeBool,
+				Optional:    true,
+				Description: "If set to true, Disables TLS certificate check on BIG-IP. Default : True",
+				DefaultFunc: schema.EnvDefaultFunc("BIGIP_VERIFY_CERT_DISABLE", true),
+			},
+			"trusted_cert_path": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Description: "Valid Trusted Certificate path",
+				DefaultFunc: schema.EnvDefaultFunc("BIGIP_TRUSTED_CERT_PATH", nil),
 			},
 			"teem_disable": {
 				Type:        schema.TypeBool,
@@ -67,25 +82,28 @@ func Provider() terraform.ResourceProvider {
 			"login_ref": {
 				Type:        schema.TypeString,
 				Optional:    true,
-				Default:     "tmos",
 				Description: "Login reference for token authentication (see BIG-IP REST docs for details)",
-				DefaultFunc: schema.EnvDefaultFunc("BIGIP_LOGIN_REF", nil),
+				DefaultFunc: schema.EnvDefaultFunc("BIGIP_LOGIN_REF", "tmos"),
 			},
 		},
 		DataSourcesMap: map[string]*schema.Resource{
-			"bigip_ltm_datagroup":        dataSourceBigipLtmDataGroup(),
-			"bigip_ltm_monitor":          dataSourceBigipLtmMonitor(),
-			"bigip_ltm_irule":            dataSourceBigipLtmIrule(),
-			"bigip_ssl_certificate":      dataSourceBigipSslCertificate(),
-			"bigip_ltm_pool":             dataSourceBigipLtmPool(),
-			"bigip_ltm_policy":           dataSourceBigipLtmPolicy(),
-			"bigip_ltm_node":             dataSourceBigipLtmNode(),
-			"bigip_vwan_config":          dataSourceBigipVwanconfig(),
-			"bigip_waf_signatures":       dataSourceBigipWafSignatures(),
-			"bigip_waf_policy":           dataSourceBigipWafPolicy(),
-			"bigip_waf_pb_suggestions":   dataSourceBigipWafPb(),
-			"bigip_waf_entity_url":       dataSourceBigipWafEntityUrl(),
-			"bigip_waf_entity_parameter": dataSourceBigipWafEntityParameter(),
+			"bigip_ltm_datagroup":                 dataSourceBigipLtmDataGroup(),
+			"bigip_ltm_monitor":                   dataSourceBigipLtmMonitor(),
+			"bigip_ltm_irule":                     dataSourceBigipLtmIrule(),
+			"bigip_ssl_certificate":               dataSourceBigipSslCertificate(),
+			"bigip_ltm_pool":                      dataSourceBigipLtmPool(),
+			"bigip_ltm_policy":                    dataSourceBigipLtmPolicy(),
+			"bigip_ltm_node":                      dataSourceBigipLtmNode(),
+			"bigip_vwan_config":                   dataSourceBigipVwanconfig(),
+			"bigip_waf_signatures":                dataSourceBigipWafSignatures(),
+			"bigip_waf_policy":                    dataSourceBigipWafPolicy(),
+			"bigip_waf_pb_suggestions":            dataSourceBigipWafPb(),
+			"bigip_waf_entity_url":                dataSourceBigipWafEntityUrl(),
+			"bigip_waf_entity_parameter":          dataSourceBigipWafEntityParameter(),
+			"bigip_fast_consul_service_discovery": dataSourceBigipFastConsulServiceDiscovery(),
+			"bigip_fast_aws_service_discovery":    dataSourceBigipFastAwsServiceDiscovery(),
+			"bigip_fast_azure_service_discovery":  dataSourceBigipFastAzureServiceDiscovery(),
+			"bigip_fast_gce_service_discovery":    dataSourceBigipFastGceServiceDiscovery(),
 		},
 		ResourcesMap: map[string]*schema.Resource{
 			"bigip_cm_device":                       resourceBigipCmDevice(),
@@ -132,6 +150,7 @@ func Provider() terraform.ResourceProvider {
 			"bigip_fast_http_app":                   resourceBigipHttpFastApp(),
 			"bigip_fast_https_app":                  resourceBigipFastHTTPSApp(),
 			"bigip_fast_tcp_app":                    resourceBigipFastTcpApp(),
+			"bigip_fast_udp_app":                    resourceBigipFastUdpApp(),
 			"bigip_ssl_certificate":                 resourceBigipSslCertificate(),
 			"bigip_ssl_key":                         resourceBigipSslKey(),
 			"bigip_command":                         resourceBigipCommand(),
@@ -144,9 +163,10 @@ func Provider() terraform.ResourceProvider {
 			"bigip_net_ike_peer":                    resourceBigipNetIkePeer(),
 			"bigip_ipsec_profile":                   resourceBigipIpsecProfile(),
 			"bigip_waf_policy":                      resourceBigipAwafPolicy(),
+			"bigip_vcmp_guest":                      resourceBigipVcmpGuest(),
 		},
 	}
-	p.ConfigureFunc = func(d *schema.ResourceData) (interface{}, error) {
+	p.ConfigureContextFunc = func(ctx context.Context, d *schema.ResourceData) (interface{}, diag.Diagnostics) {
 		terraformVersion := p.TerraformVersion
 		if terraformVersion == "" {
 			// Terraform 0.12 introduced this field to the protocol
@@ -158,27 +178,35 @@ func Provider() terraform.ResourceProvider {
 	return p
 }
 
-func providerConfigure(d *schema.ResourceData, terraformVersion string) (interface{}, error) {
-	config := Config{
-		Address:  d.Get("address").(string),
-		Port:     d.Get("port").(string),
-		Username: d.Get("username").(string),
-		Password: d.Get("password").(string),
-		Token:    d.Get("token_value").(string),
+func providerConfigure(d *schema.ResourceData, terraformVersion string) (interface{}, diag.Diagnostics) {
+	config := &bigip.Config{
+		Address:           d.Get("address").(string),
+		Port:              d.Get("port").(string),
+		Username:          d.Get("username").(string),
+		Password:          d.Get("password").(string),
+		Token:             d.Get("token_value").(string),
+		CertVerifyDisable: d.Get("validate_certs_disable").(bool),
 	}
 	if d.Get("token_auth").(bool) {
 		config.LoginReference = d.Get("login_ref").(string)
 	}
-	cfg, err := config.Client()
+	if !d.Get("validate_certs_disable").(bool) {
+		if d.Get("trusted_cert_path").(string) == "" {
+			return nil, diag.FromErr(fmt.Errorf("Valid Trust Certificate path not provided using :%+v ", "trusted_cert_path"))
+		}
+		config.TrustedCertificate = d.Get("trusted_cert_path").(string)
+	}
+	cfg, err := Client(config)
 	if err != nil {
-		return cfg, err
+		return cfg, diag.FromErr(err)
 	}
 	if cfg != nil {
 		cfg.UserAgent = fmt.Sprintf("Terraform/%s", terraformVersion)
 		cfg.UserAgent += fmt.Sprintf("/terraform-provider-bigip/%s", getVersion())
 		cfg.Teem = d.Get("teem_disable").(bool)
+		cfg.Transport.TLSClientConfig.InsecureSkipVerify = d.Get("validate_certs_disable").(bool)
 	}
-	return cfg, err
+	return cfg, diag.FromErr(err)
 }
 
 // Convert slice of strings to schema.TypeSet
@@ -204,6 +232,15 @@ func listToStringSlice(s []interface{}) []string {
 	list := make([]string, len(s))
 	for i, v := range s {
 		list[i] = v.(string)
+	}
+	return list
+}
+
+// Convert schema.TypeList to a slice of strings
+func listToIntSlice(s []interface{}) []int {
+	list := make([]int, len(s))
+	for i, v := range s {
+		list[i] = v.(int)
 	}
 	return list
 }
@@ -236,7 +273,9 @@ func mapEntity(d map[string]interface{}, obj interface{}) {
 				incoming := d[field].([]interface{})
 				s := reflect.MakeSlice(f.Type(), len(incoming), len(incoming))
 				for i := 0; i < len(incoming); i++ {
-					s.Index(i).Set(reflect.ValueOf(incoming[i]))
+					if incoming[i] != nil {
+						s.Index(i).Set(reflect.ValueOf(incoming[i]))
+					}
 				}
 				f.Set(s)
 			} else {
@@ -268,4 +307,14 @@ func toSnakeCase(str string) string {
 
 func getVersion() string {
 	return ProviderVersion
+}
+
+// hashForState computes the hexadecimal representation of the SHA1 checksum of a string.
+// This is used by most resources/data-sources here to compute their Unique Identifier (ID).
+func hashForState(value string) string {
+	if value == "" {
+		return ""
+	}
+	hash := sha1.Sum([]byte(strings.TrimSpace(value)))
+	return hex.EncodeToString(hash[:])
 }

@@ -13,16 +13,16 @@ import (
 	"testing"
 
 	bigip "github.com/f5devcentral/go-bigip"
-	"github.com/hashicorp/terraform-plugin-sdk/helper/resource"
-	"github.com/hashicorp/terraform-plugin-sdk/terraform"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 )
 
-var TEST_VA_NAME = fmt.Sprintf("/%s/test-va", TEST_PARTITION)
-var TEST_VA_NAME_CHANGED = fmt.Sprintf("/%s/test-va-changed", TEST_PARTITION)
+var TEST_VA_NAME = fmt.Sprintf("/%s/test-va", TestPartition)
+var TEST_VA_NAME_CHANGED = fmt.Sprintf("/%s/test-va-changed", TestPartition)
 var TEST_VA_CONFIG = `
 resource "bigip_ltm_virtual_address" "test-va" {
-	name = "%s"
-
+	name          = "%s"
+	traffic_group = "/Common/none"
 }
 `
 var TEST_VA_RESOURCE = fmt.Sprintf(TEST_VA_CONFIG, TEST_VA_NAME)

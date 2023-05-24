@@ -7,13 +7,15 @@ If a copy of the MPL was not distributed with this file,You can obtain one at ht
 package bigip
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"regexp"
 	"strings"
 
 	bigip "github.com/f5devcentral/go-bigip"
-	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
 var parentMonitors = map[string]bool{
@@ -26,20 +28,20 @@ var parentMonitors = map[string]bool{
 	"/Common/icmp":          true,
 	"/Common/gateway_icmp":  true,
 	"/Common/tcp":           true,
-	"/Common/tcp-half-open": true,
+	"/Common/tcp_half_open": true,
 	"/Common/ftp":           true,
 	"/Common/ldap":          true,
+	"/Common/smtp":          true,
 }
 
 func resourceBigipLtmMonitor() *schema.Resource {
 	return &schema.Resource{
-		Create: resourceBigipLtmMonitorCreate,
-		Read:   resourceBigipLtmMonitorRead,
-		Update: resourceBigipLtmMonitorUpdate,
-		Delete: resourceBigipLtmMonitorDelete,
-		Exists: resourceBigipLtmMonitorExists,
+		CreateContext: resourceBigipLtmMonitorCreate,
+		ReadContext:   resourceBigipLtmMonitorRead,
+		UpdateContext: resourceBigipLtmMonitorUpdate,
+		DeleteContext: resourceBigipLtmMonitorDelete,
 		Importer: &schema.ResourceImporter{
-			State: schema.ImportStatePassthrough,
+			StateContext: schema.ImportStatePassthroughContext,
 		},
 
 		Schema: map[string]*schema.Schema{
@@ -55,7 +57,7 @@ func resourceBigipLtmMonitor() *schema.Resource {
 				Required:     true,
 				ValidateFunc: validateParent,
 				ForceNew:     true,
-				Description:  "Existing monitor to inherit from. Must be one of /Common/http, /Common/https, /Common/icmp or /Common/gateway_icmp.",
+				Description:  "Existing monitor to inherit from. Must be one of /Common/http, /Common/https, /Common/icmp, /Common/gateway_icmp or /Common/tcp_half_open or /Common/smtp.",
 			},
 			"interval": {
 				Type:        schema.TypeInt,
@@ -193,7 +195,7 @@ func resourceBigipLtmMonitor() *schema.Resource {
 	}
 }
 
-func resourceBigipLtmMonitorCreate(d *schema.ResourceData, meta interface{}) error {
+func resourceBigipLtmMonitorCreate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*bigip.BigIP)
 	name := d.Get("name").(string)
 	parent := monitorParent(d.Get("parent").(string))
@@ -207,19 +209,22 @@ func resourceBigipLtmMonitorCreate(d *schema.ResourceData, meta interface{}) err
 	if strings.Contains(parent, "gateway") {
 		parent = "gateway-icmp"
 	}
+	if strings.Contains(parent, "tcp_half_open") {
+		parent = "tcp-half-open"
+	}
 
 	err := client.CreateMonitor(config, parent)
 
 	if err != nil {
 		log.Printf("[ERROR] Unable to Create Monitor (%s) (%v) ", name, err)
-		return err
+		return diag.FromErr(err)
 	}
 
 	d.SetId(name)
-	return resourceBigipLtmMonitorRead(d, meta)
+	return resourceBigipLtmMonitorRead(ctx, d, meta)
 }
 
-func resourceBigipLtmMonitorRead(d *schema.ResourceData, meta interface{}) error {
+func resourceBigipLtmMonitorRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*bigip.BigIP)
 
 	name := d.Id()
@@ -233,7 +238,7 @@ func resourceBigipLtmMonitorRead(d *schema.ResourceData, meta interface{}) error
 	monitors, err := client.Monitors()
 	if err != nil {
 		log.Printf("[ERROR] Unable to retrieve Monitor (%s) (%v) ", name, err)
-		return err
+		return diag.FromErr(err)
 	}
 	if monitors == nil {
 		log.Printf("[WARN] Monitor (%s) not found, removing from state", d.Id())
@@ -246,10 +251,10 @@ func resourceBigipLtmMonitorRead(d *schema.ResourceData, meta interface{}) error
 			_ = d.Set("up_interval", m.UpInterval)
 			_ = d.Set("timeout", m.Timeout)
 			if err := d.Set("send", m.SendString); err != nil {
-				return fmt.Errorf("[DEBUG] Error saving SendString to state for Monitor (%s): %s", d.Id(), err)
+				return diag.FromErr(fmt.Errorf("[DEBUG] Error saving SendString to state for Monitor (%s): %s", d.Id(), err))
 			}
 			if err := d.Set("receive", m.ReceiveString); err != nil {
-				return fmt.Errorf("[DEBUG] Error saving ReceiveString to state for Monitor (%s): %s", d.Id(), err)
+				return diag.FromErr(fmt.Errorf("[DEBUG] Error saving ReceiveString to state for Monitor (%s): %s", d.Id(), err))
 			}
 			_ = d.Set("receive_disable", m.ReceiveDisable)
 			_ = d.Set("reverse", m.Reverse)
@@ -276,35 +281,10 @@ func resourceBigipLtmMonitorRead(d *schema.ResourceData, meta interface{}) error
 			return nil
 		}
 	}
-	return fmt.Errorf("Couldn't find LTM Monitor %s ", name)
+	return diag.FromErr(fmt.Errorf("Couldn't find LTM Monitor %s ", name))
 }
 
-func resourceBigipLtmMonitorExists(d *schema.ResourceData, meta interface{}) (bool, error) {
-	client := meta.(*bigip.BigIP)
-	name := d.Id()
-	log.Printf("[INFO] Checking LTM Monitor: %+v Exist", name)
-
-	monitors, err := client.Monitors()
-
-	if err != nil {
-		log.Printf("[ERROR] Unable to retrieve Monitor (%s) (%v) ", name, err)
-		return false, err
-	}
-	if monitors == nil {
-		log.Printf("[WARN] Monitor (%s) not found, removing from state", d.Id())
-		d.SetId("")
-		return false, nil
-	}
-	for _, m := range monitors {
-		if m.FullPath == name {
-			return true, nil
-		}
-	}
-
-	return false, nil
-}
-
-func resourceBigipLtmMonitorUpdate(d *schema.ResourceData, meta interface{}) error {
+func resourceBigipLtmMonitorUpdate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*bigip.BigIP)
 
 	name := d.Id()
@@ -319,17 +299,20 @@ func resourceBigipLtmMonitorUpdate(d *schema.ResourceData, meta interface{}) err
 	if strings.Contains(parent, "gateway") {
 		parent = "gateway-icmp"
 	}
+	if strings.Contains(parent, "tcp_half_open") {
+		parent = "tcp-half-open"
+	}
 
 	err := client.ModifyMonitor(name, parent, config)
 	if err != nil {
 		log.Printf("[ERROR] Unable to Update Monitor (%s) (%v) ", name, err)
-		return err
+		return diag.FromErr(err)
 	}
 
-	return resourceBigipLtmMonitorRead(d, meta)
+	return resourceBigipLtmMonitorRead(ctx, d, meta)
 }
 
-func resourceBigipLtmMonitorDelete(d *schema.ResourceData, meta interface{}) error {
+func resourceBigipLtmMonitorDelete(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*bigip.BigIP)
 	name := d.Id()
 	parent := monitorParent(d.Get("parent").(string))
@@ -338,11 +321,14 @@ func resourceBigipLtmMonitorDelete(d *schema.ResourceData, meta interface{}) err
 	if strings.Contains(parent, "gateway") {
 		parent = "gateway-icmp"
 	}
+	if strings.Contains(parent, "tcp_half_open") {
+		parent = "tcp-half-open"
+	}
 
 	err := client.DeleteMonitor(name, parent)
 	if err != nil {
 		log.Printf("[ERROR] Unable to Delete Monitor (%s) (%v) ", name, err)
-		return err
+		return diag.FromErr(err)
 	}
 	d.SetId("")
 	return nil
@@ -354,7 +340,7 @@ func validateParent(v interface{}, k string) ([]string, []error) {
 		return nil, nil
 	}
 
-	return nil, []error{fmt.Errorf("parent must be one of /Common/udp, /Common/postgresql, /Common/mysql,/Common/mssql, /Common/http, /Common/https, /Common/icmp, /Common/gateway_icmp, /Common/tcp-half-open, /Common/tcp, /Common/ftp")}
+	return nil, []error{fmt.Errorf("parent must be one of /Common/udp, /Common/postgresql, /Common/mysql,/Common/mssql, /Common/http, /Common/https, /Common/icmp, /Common/gateway_icmp, /Common/tcp_half_open, /Common/tcp, /Common/ftp. /Common/smtp")}
 }
 
 func monitorParent(s string) string {

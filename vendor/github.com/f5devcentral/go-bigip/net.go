@@ -264,8 +264,8 @@ type Vxlan struct {
 	Port              int    `json:"port,omitempty"`
 }
 
-//TrafficSelector is the structure used for Creating IPSec Traffic selectors
-//https://clouddocs.f5.com/api/icontrol-rest/APIRef_tm_net_ipsec_traffic-selector.html
+// TrafficSelector is the structure used for Creating IPSec Traffic selectors
+// https://clouddocs.f5.com/api/icontrol-rest/APIRef_tm_net_ipsec_traffic-selector.html
 type TrafficSelector struct {
 	Name                 string `json:"name,omitempty"`
 	FullPath             string `json:"fullPath,omitempty"`
@@ -486,12 +486,17 @@ func (b *BigIP) Vlan(name string) (*Vlan, error) {
 	return &vlan, nil
 }
 
+//// CreateVlan adds a new VLAN to the BIG-IP system.
+//func (b *BigIP) CreateVlan(name string, tag int) error {
+//	config := &Vlan{
+//		Name: name,
+//		Tag:  tag,
+//	}
+//	return b.post(config, uriNet, uriVlan)
+//}
+
 // CreateVlan adds a new VLAN to the BIG-IP system.
-func (b *BigIP) CreateVlan(name string, tag int) error {
-	config := &Vlan{
-		Name: name,
-		Tag:  tag,
-	}
+func (b *BigIP) CreateVlan(config *Vlan) error {
 	return b.post(config, uriNet, uriVlan)
 }
 

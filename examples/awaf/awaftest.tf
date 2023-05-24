@@ -67,7 +67,7 @@ resource "bigip_waf_policy" "test-awaf" {
   //  parameters           = [data.bigip_waf_entity_parameter.Param1.json, data.bigip_waf_entity_parameter.Param2.json]
   //  signatures = [data.bigip_waf_signatures.WAFSIG1.json]
   //  signatures = [data.bigip_waf_signatures.WAFSIG1.json, data.bigip_waf_signatures.WAFSIG2.json]
-//  parameters = [data.bigip_waf_entity_parameter.Param1.json, data.bigip_waf_entity_parameter.Param2.json]
+  //  parameters = [data.bigip_waf_entity_parameter.Param1.json, data.bigip_waf_entity_parameter.Param2.json]
   parameters = [data.bigip_waf_entity_parameter.Param1.json, data.bigip_waf_entity_parameter.Param2.json, data.bigip_waf_entity_parameter.Param3.json]
   //  urls                 = [data.bigip_waf_entity_url.URL.json, data.bigip_waf_entity_url.URL2.json]
   //  open_api_files = ["https://api.swaggerhub.com/apis/F5EMEASSA/Arcadia-OAS3/2.0.0-oas3"]
@@ -223,4 +223,83 @@ resource "bigip_waf_policy" "test-awaf" {
 //  )
 //  template_name = "POLICY_TEMPLATE_RAPID_DEPLOYMENT"
 //  type          = "security"
+//}
+
+// EXAMPLE #5
+
+//resource "bigip_waf_policy" "test-awaf-import" {
+//  application_language = "utf-8"
+//  name                 = "testimportawaf"
+//  policy_import_json   = jsonencode(
+//  {
+//    "policy": {
+//      "description": "PolicyApp01 Description Example",
+//      "template": {
+//        "name": "POLICY_TEMPLATE_RAPID_DEPLOYMENT"
+//      },
+//      "enforcementMode": "blocking",
+//      "server-technologies": [
+//        {
+//          "serverTechnologyName": "MySQL"
+//        }
+//      ],
+//      "signature-settings": {
+//        "signatureStaging": false
+//      },
+//      "methods" : [
+//        {
+//          "actAsMethod" : "POST",
+//          "name" : "PATCH"
+//        },
+//        {
+//          "actAsMethod" : "GET",
+//          "name" : "DELETE"
+//        },
+//        {
+//          "actAsMethod" : "GET",
+//          "name" : "PUT"
+//        },
+//        {
+//          "actAsMethod" : "GET",
+//          "name" : "OPTIONS"
+//        },
+//        {
+//          "actAsMethod" : "POST",
+//          "name" : "POST"
+//        },
+//        {
+//          "actAsMethod" : "GET",
+//          "name" : "GET"
+//        },
+//        {
+//          "actAsMethod" : "GET",
+//          "name" : "HEAD"
+//        }
+//      ],
+//      "signatures": [
+//        {
+//          "signatureId": 200101552,
+//          "enabled": false,
+//          "performStaging": false
+//        }
+//      ],
+//      "whitelist-ips": [
+//        {
+//          "ipAddress": "10.0.0.1",
+//          "ipMask": "255.255.255.255",
+//          "description": "always block this ip address",
+//          "blockRequests": "always"
+//        }
+//      ],
+//      "disallowed-geolocations": [
+//        {
+//          "countryName": "American Samoa"
+//        }
+//      ]
+//    },
+//    "modifications": []
+//  }
+//
+//  )
+//  template_name = ""
 //}

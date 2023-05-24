@@ -6,6 +6,7 @@ If a copy of the MPL was not distributed with this file, You can obtain one at h
 package bigip
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -15,17 +16,18 @@ import (
 	bigip "github.com/f5devcentral/go-bigip"
 	"github.com/f5devcentral/go-bigip/f5teem"
 	"github.com/google/uuid"
-	"github.com/hashicorp/terraform-plugin-sdk/helper/schema"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/schema"
 )
 
 func resourceBigipLtmProfileClientSsl() *schema.Resource {
 	return &schema.Resource{
-		Create: resourceBigipLtmProfileClientSSLCreate,
-		Update: resourceBigipLtmProfileClientSSLUpdate,
-		Read:   resourceBigipLtmProfileClientSSLRead,
-		Delete: resourceBigipLtmProfileClientSSLDelete,
+		CreateContext: resourceBigipLtmProfileClientSSLCreate,
+		UpdateContext: resourceBigipLtmProfileClientSSLUpdate,
+		ReadContext:   resourceBigipLtmProfileClientSSLRead,
+		DeleteContext: resourceBigipLtmProfileClientSSLDelete,
 		Importer: &schema.ResourceImporter{
-			State: schema.ImportStatePassthrough,
+			StateContext: schema.ImportStatePassthroughContext,
 		},
 
 		Schema: map[string]*schema.Schema{
@@ -106,56 +108,73 @@ func resourceBigipLtmProfileClientSsl() *schema.Resource {
 				Computed:    true,
 				Description: "Unknown OCSP Response Control. Default Drop.",
 			},
-
 			"c3d_ocsp": {
 				Type:        schema.TypeString,
 				Optional:    true,
 				Computed:    true,
 				Description: "OCSP. Default None.",
 			},
-
 			"ca_file": {
 				Type:        schema.TypeString,
 				Optional:    true,
 				Computed:    true,
 				Description: "Client certificate file path.  Default None.",
 			},
-
 			"cache_size": {
 				Type:        schema.TypeInt,
 				Optional:    true,
 				Computed:    true,
 				Description: "Cache size (sessions).",
 			},
-
 			"cache_timeout": {
 				Type:        schema.TypeInt,
 				Optional:    true,
 				Computed:    true,
 				Description: "Cache time out",
 			},
-
 			"cert": {
-				Type:         schema.TypeString,
-				Optional:     true,
-				Computed:     true,
-				ValidateFunc: validateF5Name,
-				Description:  "Name of the server certificate.",
-			},
-
-			"cert_key_chain": {
-				Type:     schema.TypeList,
+				Type:     schema.TypeString,
 				Optional: true,
 				Computed: true,
+				//Default:      "/Common/default.crt",
+				ValidateFunc: validateF5NameWithDirectory,
+				Description:  "Name of the server certificate.",
+			},
+			"key": {
+				Type:     schema.TypeString,
+				Optional: true,
+				Computed: true,
+				//Default:      "/Common/default.key",
+				ValidateFunc: validateF5NameWithDirectory,
+				Description:  "Name of the Server SSL profile key",
+			},
+			"chain": {
+				Type:     schema.TypeString,
+				Optional: true,
+				Computed: true,
+				//Default:  "none",
+				// ValidateFunc: validateF5NameWithDirectory,
+				Description: "Client certificate chain name.",
+			},
+			"passphrase": {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Computed:    true,
+				Sensitive:   true,
+				Description: "Client Certificate Constrained Delegation CA passphrase",
+			},
+			"cert_key_chain": {
+				Type:       schema.TypeList,
+				Optional:   true,
+				MaxItems:   1,
+				Deprecated: "This Field 'cert_key_chain' going to deprecate in future version, please specify with cert,key,chain,passphrase as separate attribute.",
 				Elem: &schema.Resource{
 					Schema: map[string]*schema.Schema{
-
 						"name": {
 							Type:        schema.TypeString,
 							Optional:    true,
 							Description: "Name",
 						},
-
 						"cert": {
 							Type:        schema.TypeString,
 							Optional:    true,
@@ -172,7 +191,6 @@ func resourceBigipLtmProfileClientSsl() *schema.Resource {
 								return false
 							},
 						},
-
 						"chain": {
 							Type:        schema.TypeString,
 							Optional:    true,
@@ -189,7 +207,6 @@ func resourceBigipLtmProfileClientSsl() *schema.Resource {
 								return false
 							},
 						},
-
 						"key": {
 							Type:        schema.TypeString,
 							Optional:    true,
@@ -206,10 +223,11 @@ func resourceBigipLtmProfileClientSsl() *schema.Resource {
 								return false
 							},
 						},
-
 						"passphrase": {
 							Type:        schema.TypeString,
 							Optional:    true,
+							Computed:    true,
+							Sensitive:   true,
 							Description: "Key passphrase",
 						},
 					},
@@ -239,18 +257,19 @@ func resourceBigipLtmProfileClientSsl() *schema.Resource {
 				Description: "Cert lookup by ip address and port enabled / disabled",
 			},
 
-			"chain": {
-				Type:        schema.TypeString,
-				Optional:    true,
-				Computed:    true,
-				Description: "Client certificate chain name.",
-			},
-
 			"ciphers": {
 				Type:        schema.TypeString,
 				Optional:    true,
 				Computed:    true,
 				Description: "BigIP Cipher string.",
+			},
+
+			"cipher_group": {
+				Type:          schema.TypeString,
+				Optional:      true,
+				Default:       "none",
+				Description:   "Cipher group for the ssl client profile",
+				ConflictsWith: []string{"ciphers"},
 			},
 
 			"client_cert_ca": {
@@ -295,14 +314,6 @@ func resourceBigipLtmProfileClientSsl() *schema.Resource {
 				Description: "Inherit cert key chain",
 			},
 
-			"key": {
-				Type:         schema.TypeString,
-				Optional:     true,
-				Computed:     true,
-				ValidateFunc: validateF5Name,
-				Description:  "Name of the Server SSL profile key",
-			},
-
 			"mod_ssl_methods": {
 				Type:        schema.TypeString,
 				Optional:    true,
@@ -323,13 +334,6 @@ func resourceBigipLtmProfileClientSsl() *schema.Resource {
 				Set:      schema.HashString,
 				Optional: true,
 				Computed: true,
-			},
-
-			"passphrase": {
-				Type:        schema.TypeString,
-				Optional:    true,
-				Computed:    true,
-				Description: "Client Certificate Constrained Delegation CA passphrase",
 			},
 
 			"peer_cert_mode": {
@@ -489,7 +493,7 @@ func resourceBigipLtmProfileClientSsl() *schema.Resource {
 	}
 }
 
-func resourceBigipLtmProfileClientSSLCreate(d *schema.ResourceData, meta interface{}) error {
+func resourceBigipLtmProfileClientSSLCreate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*bigip.BigIP)
 	name := d.Get("name").(string)
 	log.Printf("[INFO] Creating Client Ssl Profile:%+v ", name)
@@ -502,7 +506,7 @@ func resourceBigipLtmProfileClientSSLCreate(d *schema.ResourceData, meta interfa
 
 	if err != nil {
 		log.Printf("[ERROR] Unable to Create Client Ssl Profile (%s) (%v)", name, err)
-		return err
+		return diag.FromErr(err)
 	}
 
 	d.SetId(name)
@@ -527,10 +531,10 @@ func resourceBigipLtmProfileClientSSLCreate(d *schema.ResourceData, meta interfa
 		}
 	}
 
-	return resourceBigipLtmProfileClientSSLRead(d, meta)
+	return resourceBigipLtmProfileClientSSLRead(ctx, d, meta)
 }
 
-func resourceBigipLtmProfileClientSSLUpdate(d *schema.ResourceData, meta interface{}) error {
+func resourceBigipLtmProfileClientSSLUpdate(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*bigip.BigIP)
 	name := d.Id()
 
@@ -542,12 +546,12 @@ func resourceBigipLtmProfileClientSSLUpdate(d *schema.ResourceData, meta interfa
 	config := getClientSslConfig(d, pss)
 	err := client.ModifyClientSSLProfile(name, config)
 	if err != nil {
-		return fmt.Errorf(" Error create profile Ssl (%s): %s", name, err)
+		return diag.FromErr(fmt.Errorf("error create profile Ssl (%s): %s", name, err))
 	}
-	return resourceBigipLtmProfileClientSSLRead(d, meta)
+	return resourceBigipLtmProfileClientSSLRead(ctx, d, meta)
 }
 
-func resourceBigipLtmProfileClientSSLRead(d *schema.ResourceData, meta interface{}) error {
+func resourceBigipLtmProfileClientSSLRead(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*bigip.BigIP)
 	name := d.Id()
 
@@ -556,7 +560,7 @@ func resourceBigipLtmProfileClientSSLRead(d *schema.ResourceData, meta interface
 
 	if err != nil {
 		log.Printf("[ERROR] Unable to Retrieve Client SSL Profile   (%s) (%v) ", name, err)
-		return err
+		return diag.FromErr(err)
 	}
 
 	if obj == nil {
@@ -568,71 +572,38 @@ func resourceBigipLtmProfileClientSSLRead(d *schema.ResourceData, meta interface
 	_ = d.Set("name", name)
 	_ = d.Set("partition", obj.Partition)
 	_ = d.Set("defaults_from", obj.DefaultsFrom)
-
 	if _, ok := d.GetOk("alert_timeout"); ok {
-		if err := d.Set("alert_timeout", obj.AlertTimeout); err != nil {
-			return fmt.Errorf("[DEBUG] Error saving AlertTimeout to state for Ssl profile  (%s): %s", d.Id(), err)
-		}
+		_ = d.Set("alert_timeout", obj.AlertTimeout)
 	}
-
 	if _, ok := d.GetOk("allow_non_ssl"); ok {
-		if err := d.Set("allow_non_ssl", obj.AllowNonSsl); err != nil {
-			return fmt.Errorf("[DEBUG] Error saving AllowNonSsl to state for Ssl profile  (%s): %s", d.Id(), err)
-		}
+		_ = d.Set("allow_non_ssl", obj.AllowNonSsl)
 	}
-
 	if _, ok := d.GetOk("authenticate"); ok {
-		if err := d.Set("authenticate", obj.Authenticate); err != nil {
-			return fmt.Errorf("[DEBUG] Error saving Authenticate to state for Ssl profile  (%s): %s", d.Id(), err)
-		}
+		_ = d.Set("authenticate", obj.Authenticate)
 	}
-
 	if _, ok := d.GetOk("authenticate_depth"); ok {
-		if err := d.Set("authenticate_depth", obj.AuthenticateDepth); err != nil {
-			return fmt.Errorf("[DEBUG] Error saving AuthenticateDepth to state for Ssl profile  (%s): %s", d.Id(), err)
-		}
+		_ = d.Set("authenticate_depth", obj.AuthenticateDepth)
 	}
-
 	if _, ok := d.GetOk("c3d_client_fallback_cert"); ok {
-		if err := d.Set("c3d_client_fallback_cert", obj.C3dClientFallbackCert); err != nil {
-			return fmt.Errorf("[DEBUG] Error saving C3dClientFallbackCert to state for Ssl profile  (%s): %s", d.Id(), err)
-		}
+		_ = d.Set("c3d_client_fallback_cert", obj.C3dClientFallbackCert)
 	}
-
 	if _, ok := d.GetOk("c3d_drop_unknown_ocsp_status"); ok {
-		if err := d.Set("c3d_drop_unknown_ocsp_status", obj.C3dDropUnknownOcspStatus); err != nil {
-			return fmt.Errorf("[DEBUG] Error saving C3dDropUnknownOcspStatus to state for Ssl profile  (%s): %s", d.Id(), err)
-		}
+		_ = d.Set("c3d_drop_unknown_ocsp_status", obj.C3dDropUnknownOcspStatus)
 	}
-
 	if _, ok := d.GetOk("c3d_ocsp"); ok {
-		if err := d.Set("c3d_ocsp", obj.C3dOcsp); err != nil {
-			return fmt.Errorf("[DEBUG] Error saving C3dOcsp to state for Ssl profile  (%s): %s", d.Id(), err)
-		}
+		_ = d.Set("c3d_ocsp", obj.C3dOcsp)
 	}
-
 	if _, ok := d.GetOk("ca_file"); ok {
-		if err := d.Set("ca_file", obj.CaFile); err != nil {
-			return fmt.Errorf("[DEBUG] Error saving CaFile to state for Ssl profile  (%s): %s", d.Id(), err)
-		}
+		_ = d.Set("ca_file", obj.CaFile)
 	}
-
 	if _, ok := d.GetOk("cache_size"); ok {
-		if err := d.Set("cache_size", obj.CacheSize); err != nil {
-			return fmt.Errorf("[DEBUG] Error saving CacheSize to state for Ssl profile  (%s): %s", d.Id(), err)
-		}
+		_ = d.Set("cache_size", obj.CacheSize)
 	}
-
 	if _, ok := d.GetOk("cache_timeout"); ok {
-		if err := d.Set("cache_timeout", obj.CacheTimeout); err != nil {
-			return fmt.Errorf("[DEBUG] Error saving CacheTimeout to state for Ssl profile  (%s): %s", d.Id(), err)
-		}
+		_ = d.Set("cache_timeout", obj.CacheTimeout)
 	}
-
 	if _, ok := d.GetOk("cert"); ok {
-		if err := d.Set("cert", obj.Cert); err != nil {
-			return fmt.Errorf("[DEBUG] Error saving Cert to state for Ssl profile  (%s): %s", d.Id(), err)
-		}
+		_ = d.Set("cert", obj.Cert)
 	}
 
 	certMap := make(map[string]interface{})
@@ -645,90 +616,53 @@ func resourceBigipLtmProfileClientSSLRead(d *schema.ResourceData, meta interface
 		certMap["passphrase"] = c.Passphrase
 		certMapList = append(certMapList, certMap)
 	}
-	_ = d.Set("cert_key_chain", certMapList)
+	log.Printf("certMapList:%+v", certMapList)
 
 	if _, ok := d.GetOk("cert_extension_includes"); ok {
-		if err := d.Set("cert_extension_includes", obj.CertExtensionIncludes); err != nil {
-			return fmt.Errorf("[DEBUG] Error saving CertExtensionIncludes to state for Ssl profile  (%s): %s", d.Id(), err)
-		}
+		_ = d.Set("cert_extension_includes", obj.CertExtensionIncludes)
 	}
-
 	if _, ok := d.GetOk("cert_life_span"); ok {
-		if err := d.Set("cert_life_span", obj.CertLifespan); err != nil {
-			return fmt.Errorf("[DEBUG] Error saving CertLifespan to state for Ssl profile  (%s): %s", d.Id(), err)
-		}
+		_ = d.Set("cert_life_span", obj.CertLifespan)
 	}
-
 	if _, ok := d.GetOk("cert_lookup_by_ipaddr_port"); ok {
-		if err := d.Set("cert_lookup_by_ipaddr_port", obj.CertLookupByIpaddrPort); err != nil {
-			return fmt.Errorf("[DEBUG] Error saving CertLookupByIpaddrPort to state for Ssl profile  (%s): %s", d.Id(), err)
-		}
+		_ = d.Set("cert_lookup_by_ipaddr_port", obj.CertLookupByIpaddrPort)
 	}
-
 	if _, ok := d.GetOk("chain"); ok {
-		if err := d.Set("chain", obj.Chain); err != nil {
-			return fmt.Errorf("[DEBUG] Error saving Chain to state for Ssl profile  (%s): %s", d.Id(), err)
-		}
+		_ = d.Set("chain", obj.Chain)
 	}
-
+	if _, ok := d.GetOk("key"); ok {
+		_ = d.Set("key", obj.Key)
+	}
 	if _, ok := d.GetOk("ciphers"); ok {
-		if err := d.Set("ciphers", obj.Ciphers); err != nil {
-			return fmt.Errorf("[DEBUG] Error saving Ciphers to state for Ssl profile  (%s): %s", d.Id(), err)
-		}
+		_ = d.Set("ciphers", obj.Ciphers)
 	}
-
+	if _, ok := d.GetOk("cipher_group"); ok {
+		_ = d.Set("cipher_group", obj.CipherGroup)
+	}
 	if _, ok := d.GetOk("client_cert_ca"); ok {
-		if err := d.Set("client_cert_ca", obj.ClientCertCa); err != nil {
-			return fmt.Errorf("[DEBUG] Error saving ClientCertCa to state for Ssl profile  (%s): %s", d.Id(), err)
-		}
+		_ = d.Set("client_cert_ca", obj.ClientCertCa)
 	}
 
 	if _, ok := d.GetOk("crl_file"); ok {
-		if err := d.Set("crl_file", obj.CrlFile); err != nil {
-			return fmt.Errorf("[DEBUG] Error saving CrlFile to state for Ssl profile  (%s): %s", d.Id(), err)
-		}
+		_ = d.Set("crl_file", obj.CrlFile)
 	}
-
 	if _, ok := d.GetOk("forward_proxy_bypass_default_action"); ok {
-		if err := d.Set("forward_proxy_bypass_default_action", obj.ForwardProxyBypassDefaultAction); err != nil {
-			return fmt.Errorf("[DEBUG] Error saving ForwardProxyBypassDefaultAction to state for Ssl profile  (%s): %s", d.Id(), err)
-		}
+		_ = d.Set("forward_proxy_bypass_default_action", obj.ForwardProxyBypassDefaultAction)
 	}
-
 	if _, ok := d.GetOk("generic_alert"); ok {
-		if err := d.Set("generic_alert", obj.GenericAlert); err != nil {
-			return fmt.Errorf("[DEBUG] Error saving GenericAlert to state for Ssl profile  (%s): %s", d.Id(), err)
-		}
+		_ = d.Set("generic_alert", obj.GenericAlert)
 	}
-
 	if _, ok := d.GetOk("handshake_timeout"); ok {
-		if err := d.Set("handshake_timeout", obj.HandshakeTimeout); err != nil {
-			return fmt.Errorf("[DEBUG] Error saving HandshakeTimeout to state for Ssl profile  (%s): %s", d.Id(), err)
-		}
+		_ = d.Set("handshake_timeout", obj.HandshakeTimeout)
 	}
-
 	if _, ok := d.GetOk("inherit_cert_keychain"); ok {
-		if err := d.Set("inherit_cert_keychain", obj.InheritCertkeychain); err != nil {
-			return fmt.Errorf("[DEBUG] Error saving InheritCertkeychain to state for Ssl profile  (%s): %s", d.Id(), err)
-		}
+		_ = d.Set("inherit_cert_keychain", obj.InheritCertkeychain)
 	}
-
-	if _, ok := d.GetOk("key"); ok {
-		if err := d.Set("key", obj.Key); err != nil {
-			return fmt.Errorf("[DEBUG] Error saving Key to state for Ssl profile  (%s): %s", d.Id(), err)
-		}
-	}
-
 	if _, ok := d.GetOk("mod_ssl_methods"); ok {
-		if err := d.Set("mod_ssl_methods", obj.ModSslMethods); err != nil {
-			return fmt.Errorf("[DEBUG] Error saving ModSslMethods to state for Ssl profile  (%s): %s", d.Id(), err)
-		}
+		_ = d.Set("mod_ssl_methods", obj.ModSslMethods)
 	}
-
 	if _, ok := d.GetOk("mode"); ok {
-		if err := d.Set("mode", obj.Mode); err != nil {
-			return fmt.Errorf("[DEBUG] Error saving Mode to state for Ssl profile  (%s): %s", d.Id(), err)
-		}
+		_ = d.Set("mode", obj.Mode)
 	}
 	xt := reflect.TypeOf(obj.TmOptions).Kind()
 	if obj.TmOptions != "none" {
@@ -739,167 +673,110 @@ func resourceBigipLtmProfileClientSSLRead(d *schema.ResourceData, meta interface
 				tmOptions = tmOptions[1:]
 				tmOptions = tmOptions[:len(tmOptions)-1]
 			}
-			if err := d.Set("tm_options", tmOptions); err != nil {
-				return fmt.Errorf("[DEBUG] Error saving TmOptions to state for Ssl profile  (%s): %s", d.Id(), err)
-			}
+			_ = d.Set("tm_options", tmOptions)
 		} else {
 			var newObj []string
 			for _, v := range obj.TmOptions.([]interface{}) {
 				newObj = append(newObj, v.(string))
 			}
-			if err := d.Set("tm_options", newObj); err != nil {
-				return fmt.Errorf("[DEBUG] Error saving TmOptions to state for Ssl profile  (%s): %s", d.Id(), err)
-			}
+			_ = d.Set("tm_options", newObj)
 		}
 	} else {
 		var tmOptions []string
-		if err := d.Set("tm_options", tmOptions); err != nil {
-			return fmt.Errorf("[DEBUG] Error saving TmOptions to state for Ssl profile  (%s): %s", d.Id(), err)
-		}
+		_ = d.Set("tm_options", tmOptions)
 	}
 
 	if _, ok := d.GetOk("proxy_ca_cert"); ok {
-		if err := d.Set("proxy_ca_cert", obj.ProxyCaCert); err != nil {
-			return fmt.Errorf("[DEBUG] Error saving Mode to state for Ssl profile  (%s): %s", d.Id(), err)
-		}
+		_ = d.Set("proxy_ca_cert", obj.ProxyCaCert)
 	}
 
 	if _, ok := d.GetOk("proxy_ca_key"); ok {
-		if err := d.Set("proxy_ca_key", obj.ProxyCaKey); err != nil {
-			return fmt.Errorf("[DEBUG] Error saving Mode to state for Ssl profile  (%s): %s", d.Id(), err)
-		}
-	}
-
-	if _, ok := d.GetOk("passphrase"); ok {
-		if err := d.Set("passphrase", obj.Passphrase); err != nil {
-			return fmt.Errorf("[DEBUG] Error saving Passphrase to state for Ssl profile  (%s): %s", d.Id(), err)
-		}
+		_ = d.Set("proxy_ca_key", obj.ProxyCaKey)
 	}
 
 	if _, ok := d.GetOk("peer_cert_mode"); ok {
-		if err := d.Set("peer_cert_mode", obj.PeerCertMode); err != nil {
-			return fmt.Errorf("[DEBUG] Error saving PeerCertMode to state for Ssl profile  (%s): %s", d.Id(), err)
-		}
+		_ = d.Set("peer_cert_mode", obj.PeerCertMode)
 	}
 
 	if _, ok := d.GetOk("proxy_ca_passphrase"); ok {
-		if err := d.Set("proxy_ca_passphrase", obj.ProxyCaPassphrase); err != nil {
-			return fmt.Errorf("[DEBUG] Error saving ProxyCaPassphrase to state for Ssl profile  (%s): %s", d.Id(), err)
-		}
+		_ = d.Set("proxy_ca_passphrase", obj.ProxyCaPassphrase)
 	}
 
 	if _, ok := d.GetOk("proxy_ssl"); ok {
-		if err := d.Set("proxy_ssl", obj.ProxySsl); err != nil {
-			return fmt.Errorf("[DEBUG] Error saving ProxySsl to state for Ssl profile  (%s): %s", d.Id(), err)
-		}
+		_ = d.Set("proxy_ssl", obj.ProxySsl)
 	}
 
 	if _, ok := d.GetOk("proxy_ssl_passthrough"); ok {
-		if err := d.Set("proxy_ssl_passthrough", obj.ProxySslPassthrough); err != nil {
-			return fmt.Errorf("[DEBUG] Error saving ProxySslPassthrough to state for Ssl profile  (%s): %s", d.Id(), err)
-		}
+		_ = d.Set("proxy_ssl_passthrough", obj.ProxySslPassthrough)
 	}
 
 	if _, ok := d.GetOk("renegotiate_period"); ok {
-		if err := d.Set("renegotiate_period", obj.RenegotiatePeriod); err != nil {
-			return fmt.Errorf("[DEBUG] Error saving RenegotiatePeriod to state for Ssl profile  (%s): %s", d.Id(), err)
-		}
+		_ = d.Set("renegotiate_period", obj.RenegotiatePeriod)
 	}
 
 	if _, ok := d.GetOk("renegotiate_size"); ok {
-		if err := d.Set("renegotiate_size", obj.RenegotiateSize); err != nil {
-			return fmt.Errorf("[DEBUG] Error saving RenegotiateSize to state for Ssl profile  (%s): %s", d.Id(), err)
-		}
+		_ = d.Set("renegotiate_size", obj.RenegotiateSize)
 	}
-
 	if _, ok := d.GetOk("renegotiation"); ok {
-		if err := d.Set("renegotiation", obj.Renegotiation); err != nil {
-			return fmt.Errorf("[DEBUG] Error saving Renegotiation to state for Ssl profile  (%s): %s", d.Id(), err)
-		}
+		_ = d.Set("renegotiation", obj.Renegotiation)
 	}
 
 	if _, ok := d.GetOk("retain_certificate"); ok {
-		if err := d.Set("retain_certificate", obj.RetainCertificate); err != nil {
-			return fmt.Errorf("[DEBUG] Error saving RetainCertificate to state for Ssl profile  (%s): %s", d.Id(), err)
-		}
+		_ = d.Set("retain_certificate", obj.RetainCertificate)
 	}
 
 	if _, ok := d.GetOk("secure_renegotiation"); ok {
-		if err := d.Set("secure_renegotiation", obj.SecureRenegotiation); err != nil {
-			return fmt.Errorf("[DEBUG] Error saving SecureRenegotiation to state for Ssl profile  (%s): %s", d.Id(), err)
-		}
+		_ = d.Set("secure_renegotiation", obj.SecureRenegotiation)
 	}
 
 	if _, ok := d.GetOk("server_name"); ok {
-		if err := d.Set("server_name", obj.ServerName); err != nil {
-			return fmt.Errorf("[DEBUG] Error saving ServerName to state for Ssl profile  (%s): %s", d.Id(), err)
-		}
+		_ = d.Set("server_name", obj.ServerName)
 	}
 
 	if _, ok := d.GetOk("session_mirroring"); ok {
-		if err := d.Set("session_mirroring", obj.SessionMirroring); err != nil {
-			return fmt.Errorf("[DEBUG] Error saving SessionMirroring to state for Ssl profile  (%s): %s", d.Id(), err)
-		}
+		_ = d.Set("session_mirroring", obj.SessionMirroring)
 	}
 
 	if _, ok := d.GetOk("session_ticket"); ok {
-		if err := d.Set("session_ticket", obj.SessionTicket); err != nil {
-			return fmt.Errorf("[DEBUG] Error saving SessionTicket to state for Ssl profile  (%s): %s", d.Id(), err)
-		}
+		_ = d.Set("session_ticket", obj.SessionTicket)
 	}
 
 	if _, ok := d.GetOk("sni_default"); ok {
-		if err := d.Set("sni_default", obj.SniDefault); err != nil {
-			return fmt.Errorf("[DEBUG] Error saving SniDefault to state for Ssl profile  (%s): %s", d.Id(), err)
-		}
+		_ = d.Set("sni_default", obj.SniDefault)
 	}
 
 	if _, ok := d.GetOk("sni_require"); ok {
-		if err := d.Set("sni_require", obj.SniRequire); err != nil {
-			return fmt.Errorf("[DEBUG] Error saving SniRequire to state for Ssl profile  (%s): %s", d.Id(), err)
-		}
+		_ = d.Set("sni_require", obj.SniRequire)
 	}
 
 	if _, ok := d.GetOk("ssl_c3d"); ok {
-		if err := d.Set("ssl_c3d", obj.SslC3d); err != nil {
-			return fmt.Errorf("[DEBUG] Error saving SslC3d to state for Ssl profile  (%s): %s", d.Id(), err)
-		}
+		_ = d.Set("ssl_c3d", obj.SslC3d)
 	}
 
 	if _, ok := d.GetOk("ssl_forward_proxy"); ok {
-		if err := d.Set("ssl_forward_proxy", obj.SslForwardProxy); err != nil {
-			return fmt.Errorf("[DEBUG] Error saving SslForwardProxy to state for Ssl profile  (%s): %s", d.Id(), err)
-		}
+		_ = d.Set("ssl_forward_proxy", obj.SslForwardProxy)
 	}
 
 	if _, ok := d.GetOk("ssl_forward_proxy_bypass"); ok {
-		if err := d.Set("ssl_forward_proxy_bypass", obj.SslForwardProxyBypass); err != nil {
-			return fmt.Errorf("[DEBUG] Error saving SslForwardProxyBypass to state for Ssl profile  (%s): %s", d.Id(), err)
-		}
+		_ = d.Set("ssl_forward_proxy_bypass", obj.SslForwardProxyBypass)
 	}
 
 	if _, ok := d.GetOk("ssl_sign_hash"); ok {
-		if err := d.Set("ssl_sign_hash", obj.SslSignHash); err != nil {
-			return fmt.Errorf("[DEBUG] Error saving SslSignHash to state for Ssl profile  (%s): %s", d.Id(), err)
-		}
+		_ = d.Set("ssl_sign_hash", obj.SslSignHash)
 	}
 
 	if _, ok := d.GetOk("strict_resume"); ok {
-		if err := d.Set("strict_resume", obj.StrictResume); err != nil {
-			return fmt.Errorf("[DEBUG] Error saving StrictResume to state for Ssl profile  (%s): %s", d.Id(), err)
-		}
+		_ = d.Set("strict_resume", obj.StrictResume)
 	}
 
 	if _, ok := d.GetOk("unclean_shutdown"); ok {
-		if err := d.Set("unclean_shutdown", obj.UncleanShutdown); err != nil {
-			return fmt.Errorf("[DEBUG] Error saving UncleanShutdown to state for Ssl profile  (%s): %s", d.Id(), err)
-		}
+		_ = d.Set("unclean_shutdown", obj.UncleanShutdown)
 	}
 
 	return nil
 }
 
-func resourceBigipLtmProfileClientSSLDelete(d *schema.ResourceData, meta interface{}) error {
+func resourceBigipLtmProfileClientSSLDelete(ctx context.Context, d *schema.ResourceData, meta interface{}) diag.Diagnostics {
 	client := meta.(*bigip.BigIP)
 
 	name := d.Id()
@@ -908,7 +785,7 @@ func resourceBigipLtmProfileClientSSLDelete(d *schema.ResourceData, meta interfa
 	err := client.DeleteClientSSLProfile(name)
 	if err != nil {
 		log.Printf("[ERROR] Unable to Delete Ssl Profile (%s) (%v)", name, err)
-		return err
+		return diag.FromErr(err)
 	}
 	d.SetId("")
 	return nil
@@ -986,12 +863,20 @@ func getClientSslConfig(d *schema.ResourceData, config *bigip.ClientSSLProfile) 
 		config.Key = d.Get("key").(string)
 		config.Chain = d.Get("chain").(string)
 		config.Passphrase = d.Get("passphrase").(string)
+	} else {
+		config.CertKeyChain = certKeyChains
 	}
 	config.CertExtensionIncludes = CertExtensionIncludes
-	config.CertKeyChain = certKeyChains
 	config.CertLifespan = d.Get("cert_life_span").(int)
 	config.CertLookupByIpaddrPort = d.Get("cert_lookup_by_ipaddr_port").(string)
-	config.Ciphers = d.Get("ciphers").(string)
+	if ciphers, ok := d.GetOk("ciphers"); ok {
+		config.Ciphers = ciphers.(string)
+		config.CipherGroup = "none"
+	}
+	if cipher_grp, ok := d.GetOk("cipher_group"); ok && cipher_grp != "none" {
+		config.CipherGroup = cipher_grp.(string)
+		config.Ciphers = "none"
+	}
 	config.ClientCertCa = d.Get("client_cert_ca").(string)
 	config.CrlFile = d.Get("crl_file").(string)
 	config.ForwardProxyBypassDefaultAction = d.Get("forward_proxy_bypass_default_action").(string)

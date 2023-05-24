@@ -10,16 +10,16 @@ import (
 	"testing"
 
 	bigip "github.com/f5devcentral/go-bigip"
-	"github.com/hashicorp/terraform-plugin-sdk/helper/resource"
-	"github.com/hashicorp/terraform-plugin-sdk/terraform"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
+	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 )
 
-var TEST_ROUTE_NAME = fmt.Sprintf("/%s/test-route", TEST_PARTITION)
+var TEST_ROUTE_NAME = fmt.Sprintf("/%s/test-route", TestPartition)
 
 var TEST_ROUTE_RESOURCE = `
 
 resource "bigip_net_vlan" "test-vlan" {
-	name = "` + TEST_VLAN_NAME + `"
+	name = "` + TestVlanName + `"
 	tag = 101
 	interfaces {
 		vlanport = 1.1
@@ -42,7 +42,7 @@ resource "bigip_net_route" "test-route" {
 var TEST_ROUTE_RESOURCE_UPDATE = `
 
 resource "bigip_net_vlan" "test-vlan" {
-        name = "` + TEST_VLAN_NAME + `"
+        name = "` + TestVlanName + `"
         tag = 101
         interfaces {
                 vlanport = 1.1
