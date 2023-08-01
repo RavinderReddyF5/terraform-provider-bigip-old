@@ -10,11 +10,11 @@ require (
 	github.com/Azure/azure-storage-blob-go v0.13.0
 	github.com/Azure/go-autorest/autorest v0.11.18
 	github.com/Azure/go-autorest/autorest/adal v0.9.13
-	github.com/f5devcentral/go-bigip v0.0.0-20230412170344-5684f43111ff
-	github.com/f5devcentral/go-bigip/f5teem v0.0.0-20230412170344-5684f43111ff
+	github.com/f5devcentral/go-bigip v0.0.0-20230629161824-6ac8bd4b0a16
+	github.com/f5devcentral/go-bigip/f5teem v0.0.0-20230629161824-6ac8bd4b0a16
 	github.com/google/uuid v1.3.0
 	github.com/hashicorp/terraform-plugin-sdk/v2 v2.25.0
-	github.com/stretchr/testify v1.7.2
+	github.com/stretchr/testify v1.8.4
 	golang.org/x/text v0.7.0
 )
 
@@ -71,8 +71,8 @@ require (
 	golang.org/x/net v0.7.0 // indirect
 	golang.org/x/sys v0.5.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
-	google.golang.org/genproto v0.0.0-20221025140454-527a21cfbd71 // indirect
-	google.golang.org/grpc v1.51.0 // indirect
+	google.golang.org/genproto v0.0.0-20230110181048-76db0878b65f // indirect
+	google.golang.org/grpc v1.53.0 // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

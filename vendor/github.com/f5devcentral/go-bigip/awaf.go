@@ -130,20 +130,20 @@ type Filetype struct {
 	WildcardOrder          int    `json:"wildcardOrder,omitempty"`
 	URLLength              int    `json:"urlLength,omitempty"`
 }
-
+type DefenseAttribute struct {
+	AllowIntrospectionQueries bool        `json:"allowIntrospectionQueries"`
+	MaximumBatchedQueries     interface{} `json:"maximumBatchedQueries,omitempty"`
+	MaximumStructureDepth     interface{} `json:"maximumStructureDepth,omitempty"`
+	MaximumTotalLength        interface{} `json:"maximumTotalLength,omitempty"`
+	MaximumValueLength        interface{} `json:"maximumValueLength,omitempty"`
+	TolerateParsingWarnings   bool        `json:"tolerateParsingWarnings"`
+}
 type GraphqlProfile struct {
-	AttackSignaturesCheck bool `json:"attackSignaturesCheck"`
-	DefenseAttributes     struct {
-		AllowIntrospectionQueries bool        `json:"allowIntrospectionQueries"`
-		MaximumBatchedQueries     interface{} `json:"maximumBatchedQueries,omitempty"`
-		MaximumStructureDepth     interface{} `json:"maximumStructureDepth,omitempty"`
-		MaximumTotalLength        interface{} `json:"maximumTotalLength,omitempty"`
-		MaximumValueLength        interface{} `json:"maximumValueLength,omitempty"`
-		TolerateParsingWarnings   bool        `json:"tolerateParsingWarnings"`
-	} `json:"defenseAttributes,omitempty"`
-	Description          string `json:"description,omitempty"`
-	MetacharElementCheck bool   `json:"metacharElementCheck"`
-	Name                 string `json:"name,omitempty"`
+	AttackSignaturesCheck bool             `json:"attackSignaturesCheck"`
+	DefenseAttributes     DefenseAttribute `json:"defenseAttributes,omitempty"`
+	Description           string           `json:"description,omitempty"`
+	MetacharElementCheck  bool             `json:"metacharElementCheck"`
+	Name                  string           `json:"name,omitempty"`
 }
 
 type SignatureType struct {
@@ -210,6 +210,18 @@ type ServerTech struct {
 	ServerTechnologyName string `json:"serverTechnologyName,omitempty"`
 }
 
+type WhitelistIp struct {
+	BlockRequests          string `json:"blockRequests,omitempty"`
+	Description            string `json:"description,omitempty"`
+	IgnoreAnomalies        bool   `json:"ignoreAnomalies,omitempty"`
+	IgnoreIpReputation     bool   `json:"ignoreIpReputation,omitempty"`
+	IpAddress              string `json:"ipAddress,omitempty"`
+	IpMask                 string `json:"ipMask,omitempty"`
+	NeverLearnRequests     bool   `json:"neverLearnRequests,omitempty"`
+	NeverLogRequests       bool   `json:"neverLogRequests,omitempty"`
+	TrustedByPolicyBuilder bool   `json:"trustedByPolicyBuilder,omitempty"`
+}
+
 type WafPolicy struct {
 	Name        string `json:"name,omitempty"`
 	Partition   string `json:"partition,omitempty"`
@@ -236,13 +248,8 @@ type WafPolicy struct {
 	SignatureSettings struct {
 		SignatureStaging bool `json:"signatureStaging,omitempty"`
 	} `json:"signature-settings,omitempty"`
-	Signatures   []WafSignature `json:"signatures,omitempty"`
-	WhitelistIps []struct {
-		IPAddress     string `json:"ipAddress,omitempty"`
-		IPMask        string `json:"ipMask,omitempty"`
-		Description   string `json:"description,omitempty"`
-		BlockRequests string `json:"blockRequests,omitempty"`
-	} `json:"whitelist-ips,omitempty"`
+	Signatures             []WafSignature   `json:"signatures,omitempty"`
+	WhitelistIps           []WhitelistIp    `json:"whitelist-ips,omitempty"`
 	GraphqlProfiles        []GraphqlProfile `json:"graphql-profiles,omitempty"`
 	Filetypes              []Filetype       `json:"filetypes,omitempty"`
 	DisallowedGeolocations []struct {
@@ -299,7 +306,12 @@ type ApplyStatus struct {
 type Parameters struct {
 	Parameters []Parameter `json:"items"`
 }
-
+type ParameterUrl struct {
+	Method   string `json:"method,omitempty"`
+	Name     string `json:"name,omitempty"`
+	Protocol string `json:"protocol,omitempty"`
+	Type     string `json:"type,omitempty"`
+}
 type Parameter struct {
 	Name                           string                   `json:"name,omitempty"`
 	Description                    string                   `json:"description,omitempty"`
@@ -322,12 +334,13 @@ type Parameter struct {
 	PerformStaging                 bool                     `json:"performStaging,omitempty"`
 	SensitiveParameter             bool                     `json:"sensitiveParameter,omitempty"`
 	SignatureOverrides             []map[string]interface{} `json:"signatureOverrides,omitempty"`
-	URL                            struct {
-		Method   string `json:"method,omitempty"`
-		Name     string `json:"name,omitempty"`
-		Protocol string `json:"protocol,omitempty"`
-		Type     string `json:"type,omitempty"`
-	} `json:"url,omitempty"`
+	URL                            interface{}              `json:"url,omitempty"`
+	//URL                            struct {
+	//	Method   string `json:"method,omitempty"`
+	//	Name     string `json:"name,omitempty"`
+	//	Protocol string `json:"protocol,omitempty"`
+	//	Type     string `json:"type,omitempty"`
+	//} `json:"url,omitempty"`
 }
 
 func (b *BigIP) GetWafSignature(signatureid int) (*Signatures, error) {
