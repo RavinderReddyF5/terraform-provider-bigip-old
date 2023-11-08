@@ -130,6 +130,7 @@ type ClientSSLProfile struct {
 	Key                             string      `json:"key,omitempty"`
 	ModSslMethods                   string      `json:"modSslMethods,omitempty"`
 	Mode                            string      `json:"mode,omitempty"`
+	OcspStapling                    string      `json:"ocspStapling,omitempty"`
 	TmOptions                       interface{} `json:"tmOptions,omitempty"`
 	Passphrase                      string      `json:"passphrase,omitempty"`
 	PeerCertMode                    string      `json:"peerCertMode,omitempty"`
@@ -675,6 +676,7 @@ type Policy struct {
 	Name        string
 	PublishCopy string
 	Partition   string
+	Description string
 	FullPath    string
 	Controls    []string
 	Requires    []string
@@ -685,6 +687,7 @@ type policyDTO struct {
 	Name        string   `json:"name"`
 	PublishCopy string   `json:"publishedCopy"`
 	Partition   string   `json:"partition,omitempty"`
+	Description string   `json:"description"`
 	Controls    []string `json:"controls,omitempty"`
 	Requires    []string `json:"requires,omitempty"`
 	Strategy    string   `json:"strategy,omitempty"`
@@ -700,6 +703,7 @@ func (p *Policy) MarshalJSON() ([]byte, error) {
 		PublishCopy: p.PublishCopy,
 		Partition:   p.Partition,
 		Controls:    p.Controls,
+		Description: p.Description,
 		Requires:    p.Requires,
 		Strategy:    p.Strategy,
 		FullPath:    p.FullPath,
@@ -715,13 +719,13 @@ func (p *Policy) UnmarshalJSON(b []byte) error {
 	if err != nil {
 		return err
 	}
-
 	p.Name = dto.Name
 	p.PublishCopy = dto.PublishCopy
 	p.Partition = dto.Partition
 	p.Controls = dto.Controls
 	p.Requires = dto.Requires
 	p.Strategy = dto.Strategy
+	p.Description = dto.Description
 	p.Rules = dto.Rules.Items
 	p.FullPath = dto.FullPath
 
@@ -744,18 +748,20 @@ type PolicyRules struct {
 }
 
 type PolicyRule struct {
-	Name       string
-	FullPath   string
-	Ordinal    int
-	Conditions []PolicyRuleCondition
-	Actions    []PolicyRuleAction
+	Name        string
+	FullPath    string
+	Ordinal     int
+	Description string
+	Conditions  []PolicyRuleCondition
+	Actions     []PolicyRuleAction
 }
 
 type policyRuleDTO struct {
-	Name       string `json:"name"`
-	Ordinal    int    `json:"ordinal"`
-	FullPath   string `json:"fullPath,omitempty"`
-	Conditions struct {
+	Name        string `json:"name"`
+	Ordinal     int    `json:"ordinal"`
+	FullPath    string `json:"fullPath,omitempty"`
+	Description string `json:"description,omitempty"`
+	Conditions  struct {
 		Items []PolicyRuleCondition `json:"items,omitempty"`
 	} `json:"conditionsReference,omitempty"`
 	Actions struct {
@@ -765,9 +771,10 @@ type policyRuleDTO struct {
 
 func (p *PolicyRule) MarshalJSON() ([]byte, error) {
 	return json.Marshal(policyRuleDTO{
-		Name:     p.Name,
-		Ordinal:  p.Ordinal,
-		FullPath: p.FullPath,
+		Name:        p.Name,
+		Ordinal:     p.Ordinal,
+		FullPath:    p.FullPath,
+		Description: p.Description,
 		Conditions: struct {
 			Items []PolicyRuleCondition `json:"items,omitempty"`
 		}{Items: p.Conditions},
@@ -789,6 +796,7 @@ func (p *PolicyRule) UnmarshalJSON(b []byte) error {
 	p.Actions = dto.Actions.Items
 	p.Conditions = dto.Conditions.Items
 	p.FullPath = dto.FullPath
+	p.Description = dto.Description
 
 	return nil
 }
@@ -1801,33 +1809,73 @@ type HttpProfiles struct {
 }
 
 type HttpProfile struct {
-	AcceptXff                 string        `json:"acceptXff,omitempty"`
-	AppService                string        `json:"appService,omitempty"`
-	BasicAuthRealm            string        `json:"basicAuthRealm,omitempty"`
-	DefaultsFrom              string        `json:"defaultsFrom,omitempty"`
-	Description               string        `json:"description,omitempty"`
-	EncryptCookieSecret       string        `json:"encryptCookieSecret,omitempty"`
-	EncryptCookies            []string      `json:"encryptCookies,omitempty"`
-	FallbackHost              string        `json:"fallbackHost,omitempty"`
-	FallbackStatusCodes       []string      `json:"fallbackStatusCodes,omitempty"`
-	HeaderErase               string        `json:"headerErase,omitempty"`
-	HeaderInsert              string        `json:"headerInsert,omitempty"`
-	InsertXforwardedFor       string        `json:"insertXforwardedFor,omitempty"`
-	LwsSeparator              string        `json:"lwsSeparator,omitempty"`
-	LwsWidth                  int           `json:"lwsWidth,omitempty"`
-	Name                      string        `json:"name,omitempty"`
-	OneconnectTransformations string        `json:"oneconnectTransformations,omitempty"`
-	TmPartition               string        `json:"tmPartition,omitempty"`
-	ProxyType                 string        `json:"proxyType,omitempty"`
-	RedirectRewrite           string        `json:"redirectRewrite,omitempty"`
-	RequestChunking           string        `json:"requestChunking,omitempty"`
-	ResponseChunking          string        `json:"responseChunking,omitempty"`
-	ResponseHeadersPermitted  []interface{} `json:"responseHeadersPermitted,omitempty"`
-	ServerAgentName           string        `json:"serverAgentName,omitempty"`
-	ViaHostName               string        `json:"viaHostName,omitempty"`
-	ViaRequest                string        `json:"viaRequest,omitempty"`
-	ViaResponse               string        `json:"viaResponse,omitempty"`
-	XffAlternativeNames       []interface{} `json:"xffAlternativeNames,omitempty"`
+	AcceptXff                 string                      `json:"acceptXff,omitempty"`
+	AppService                string                      `json:"appService,omitempty"`
+	BasicAuthRealm            string                      `json:"basicAuthRealm,omitempty"`
+	DefaultsFrom              string                      `json:"defaultsFrom,omitempty"`
+	Description               string                      `json:"description,omitempty"`
+	EncryptCookieSecret       string                      `json:"encryptCookieSecret,omitempty"`
+	EncryptCookies            []string                    `json:"encryptCookies,omitempty"`
+	FallbackHost              string                      `json:"fallbackHost,omitempty"`
+	FallbackStatusCodes       []string                    `json:"fallbackStatusCodes,omitempty"`
+	HeaderErase               string                      `json:"headerErase,omitempty"`
+	HeaderInsert              string                      `json:"headerInsert,omitempty"`
+	InsertXforwardedFor       string                      `json:"insertXforwardedFor,omitempty"`
+	LwsSeparator              string                      `json:"lwsSeparator,omitempty"`
+	LwsWidth                  int                         `json:"lwsWidth,omitempty"`
+	Name                      string                      `json:"name,omitempty"`
+	OneconnectTransformations string                      `json:"oneconnectTransformations,omitempty"`
+	TmPartition               string                      `json:"tmPartition,omitempty"`
+	ProxyType                 string                      `json:"proxyType,omitempty"`
+	RedirectRewrite           string                      `json:"redirectRewrite,omitempty"`
+	RequestChunking           string                      `json:"requestChunking,omitempty"`
+	ResponseChunking          string                      `json:"responseChunking,omitempty"`
+	ResponseHeadersPermitted  []interface{}               `json:"responseHeadersPermitted,omitempty"`
+	ServerAgentName           string                      `json:"serverAgentName,omitempty"`
+	ViaHostName               string                      `json:"viaHostName,omitempty"`
+	ViaRequest                string                      `json:"viaRequest,omitempty"`
+	ViaResponse               string                      `json:"viaResponse,omitempty"`
+	XffAlternativeNames       []interface{}               `json:"xffAlternativeNames,omitempty"`
+	Hsts                      HTTPStrictTransportSecurity `json:"hsts,omitempty"`
+	Enforcement               Enforcement                 `json:"enforcement,omitempty"`
+}
+
+type HTTPStrictTransportSecurity struct {
+	IncludeSubdomains string `json:"includeSubdomains,omitempty"`
+	MaximumAge        int    `json:"maximumAge,omitempty"`
+	Mode              string `json:"mode,omitempty"`
+	Preload           string `json:"preload,omitempty"`
+}
+
+type Enforcement struct {
+	KnownMethods          []string `json:"knownMethods,omitempty"`
+	ExcessClientHeaders   string
+	ExcessServerHeaders   string
+	MaxHeaderCount        int `json:"maxHeaderCount,omitempty"`
+	MaxHeaderSize         int `json:"maxHeaderSize,omitempty"`
+	MaxRequests           int
+	OversizeClientHeaders string
+	OversizeServerHeaders string
+	Pipeline              string
+	TruncatedRedirects    string
+	UnknownMethod         string `json:"unknownMethod,omitempty"`
+}
+
+type WebAccelerationProfileService struct {
+	Name                        string   `json:"name,omitempty"`
+	DefaultsFrom                string   `json:"defaultsFrom,omitempty"`
+	CacheSize                   int      `json:"cacheSize,omitempty"`
+	CacheMaxEntries             int      `json:"cacheMaxEntries,omitempty"`
+	CacheMaxAge                 int      `json:"cacheMaxAge,omitempty"`
+	CacheObjectMinSize          int      `json:"cacheObjectMinSize,omitempty"`
+	CacheObjectMaxSize          int      `json:"cacheObjectMaxSize,omitempty"`
+	CacheUriExclude             []string `json:"cacheUriExclude,omitempty"`
+	CacheUriInclude             []string `json:"cacheUriInclude,omitempty"`
+	CacheUriIncludeOverride     []string `json:"cacheUriIncludeOverride,omitempty"`
+	CacheUriPinned              []string `json:"cacheUriPinned,omitempty"`
+	CacheClientCacheControlMode string   `json:"cacheClientCacheControlMode,omitempty"`
+	CacheInsertAgeHeader        string   `json:"cacheInsertAgeHeader,omitempty"`
+	CacheAgingRate              int      `json:"cacheAgingRate,omitempty"`
 }
 
 type OneconnectProfiles struct {
@@ -1879,48 +1927,59 @@ type HttpCompressionProfile struct {
 	VaryHeader         string   `json:"varyHeader,omitempty"`
 }
 
+type CipherRule struct {
+	Name                string `json:"name,omitempty"`
+	Partition           string `json:"partition,omitempty"`
+	Cipher              string `json:"cipher,omitempty"`
+	DHGroups            string `json:"dhGroups,omitempty"`
+	SignatureAlgorithms string `json:"signatureAlgorithms,omitempty"`
+}
+
 const (
-	uriLtm            = "ltm"
-	uriNode           = "node"
-	uriPool           = "pool"
-	uriPoolMember     = "members"
-	uriProfile        = "profile"
-	uriServerSSL      = "server-ssl"
-	uriClientSSL      = "client-ssl"
-	uriVirtual        = "virtual"
-	uriVirtualAddress = "virtual-address"
-	uriSnatPool       = "snatpool"
-	uriMonitor        = "monitor"
-	uriIRule          = "rule"
-	uriDatagroup      = "data-group"
-	uriInternal       = "internal"
-	uriExternal       = "external"
-	uriPolicy         = "policy"
-	uriOneconnect     = "one-connect"
-	uriPersistence    = "persistence"
-	ENABLED           = "enable"
-	DISABLED          = "disable"
-	CONTEXT_SERVER    = "serverside"
-	CONTEXT_CLIENT    = "clientside"
-	CONTEXT_ALL       = "all"
-	uriTcp            = "tcp"
-	uriFtp            = "ftp"
-	uriFasthttp       = "fasthttp"
-	uriFastl4         = "fastl4"
-	uriHttpcompress   = "http-compression"
-	uriHttp2          = "http2"
-	uriSnat           = "snat"
-	uriSnatpool       = "snatpool"
-	uriCookie         = "cookie"
-	uriDestAddr       = "dest-addr"
-	uriHash           = "hash"
-	uriHost           = "host"
-	uriMSRDP          = "msrdp"
-	uriSIP            = "sip"
-	uriSourceAddr     = "source-addr"
-	uriSSL            = "ssl"
-	uriUniversal      = "universal"
-	uriCreateDraft    = "?options=create-draft"
+	uriLtm             = "ltm"
+	uriNode            = "node"
+	uriPool            = "pool"
+	uriPoolMember      = "members"
+	uriProfile         = "profile"
+	uriCipher          = "cipher"
+	uriServerSSL       = "server-ssl"
+	uriClientSSL       = "client-ssl"
+	uriVirtual         = "virtual"
+	uriVirtualAddress  = "virtual-address"
+	uriSnatPool        = "snatpool"
+	uriMonitor         = "monitor"
+	uriIRule           = "rule"
+	uriDatagroup       = "data-group"
+	uriInternal        = "internal"
+	uriExternal        = "external"
+	uriPolicy          = "policy"
+	uriOneconnect      = "one-connect"
+	uriPersistence     = "persistence"
+	ENABLED            = "enable"
+	DISABLED           = "disable"
+	CONTEXT_SERVER     = "serverside"
+	CONTEXT_CLIENT     = "clientside"
+	CONTEXT_ALL        = "all"
+	uriTcp             = "tcp"
+	uriFtp             = "ftp"
+	uriFasthttp        = "fasthttp"
+	uriFastl4          = "fastl4"
+	uriHttpcompress    = "http-compression"
+	uriHttp2           = "http2"
+	uriSnat            = "snat"
+	uriSnatpool        = "snatpool"
+	uriCookie          = "cookie"
+	uriDestAddr        = "dest-addr"
+	uriHash            = "hash"
+	uriHost            = "host"
+	uriMSRDP           = "msrdp"
+	uriSIP             = "sip"
+	uriSourceAddr      = "source-addr"
+	uriSSL             = "ssl"
+	uriUniversal       = "universal"
+	uriCreateDraft     = "?options=create-draft"
+	uriRule            = "rule"
+	uriWebAcceleration = "web-acceleration"
 )
 
 var cidr = map[string]string{
@@ -2083,7 +2142,7 @@ func (b *BigIP) GetClientSSLProfile(name string) (*ClientSSLProfile, error) {
 	if !ok {
 		return nil, nil
 	}
-	log.Printf("------------------ssl profile: %+v-----------------", clientSSLProfile)
+
 	return &clientSSLProfile, nil
 }
 
@@ -2814,7 +2873,7 @@ func (b *BigIP) CheckDraftPolicy(name string, partition string) (bool, error) {
 	if p.FullPath == "" {
 		return false, nil
 	}
-	return true , nil
+	return true, nil
 }
 
 func normalizePolicy(p *Policy) {
@@ -3786,6 +3845,20 @@ func (b *BigIP) GetHttpProfile(name string) (*HttpProfile, error) {
 	return &httpProfile, nil
 }
 
+func (b *BigIP) GetWebAccelerationProfile(name string) (*WebAccelerationProfileService, error) {
+	var webAccelerationProfileService WebAccelerationProfileService
+	err, ok := b.getForEntity(&webAccelerationProfileService, uriLtm, uriProfile, uriWebAcceleration, name)
+	if err != nil {
+		return nil, err
+	}
+
+	if !ok {
+		return nil, nil
+	}
+
+	return &webAccelerationProfileService, nil
+}
+
 // CreateHttpProfile creates a new http profile on the BIG-IP system.
 func (b *BigIP) CreateHttpProfile(name string, parent string) error {
 	config := &HttpProfile{
@@ -3801,15 +3874,30 @@ func (b *BigIP) AddHttpProfile(config *HttpProfile) error {
 	return b.post(config, uriLtm, uriProfile, uriHttp)
 }
 
+// AddWebAcceleration creates a new web acceleration profile service on the BIG-IP system.
+func (b *BigIP) AddWebAcceleration(config *WebAccelerationProfileService) error {
+	return b.post(config, uriLtm, uriProfile, uriWebAcceleration)
+}
+
 // DeleteHttpProfile removes a http profile.
 func (b *BigIP) DeleteHttpProfile(name string) error {
 	return b.delete(uriLtm, uriProfile, uriHttp, name)
+}
+
+// DeleteWebAccelerationProfile removes a web acceleration profile.
+func (b *BigIP) DeleteWebAccelerationProfile(name string) error {
+	return b.delete(uriLtm, uriProfile, uriWebAcceleration, name)
 }
 
 // ModifyHttpProfile allows you to change any attribute of a http profile.
 // Fields that can be modified are referenced in the HttpProfile struct.
 func (b *BigIP) ModifyHttpProfile(name string, config *HttpProfile) error {
 	return b.patch(config, uriLtm, uriProfile, uriHttp, name)
+}
+
+// ModifyWebAccelerationProfile allows you to change any attribute of a Web Acceleration profile.
+func (b *BigIP) ModifyWebAccelerationProfile(name string, config *WebAccelerationProfileService) error {
+	return b.patch(config, uriLtm, uriProfile, uriWebAcceleration, name)
 }
 
 // OneconnectProfiles returns a list of HTTP profiles
@@ -3910,4 +3998,87 @@ func (b *BigIP) DeleteHttpCompressionProfile(name string) error {
 // Fields that can be modified are referenced in the HttpCompressionProfile struct.
 func (b *BigIP) ModifyHttpCompressionProfile(name string, config *HttpCompressionProfile) error {
 	return b.put(config, uriLtm, uriProfile, uriHttpcompress, name)
+}
+
+type CipherRuleReq struct {
+	Name                string `json:"name,omitempty"`
+	Partition           string `json:"partition,omitempty"`
+	FullPath            string `json:"fullPath,omitempty"`
+	Cipher              string `json:"cipher,omitempty"`
+	Description         string `json:"description,omitempty"`
+	DhGroups            string `json:"dhGroups,omitempty"`
+	SignatureAlgorithms string `json:"signatureAlgorithms,omitempty"`
+}
+
+func (b *BigIP) AddLtmCipherRule(config *CipherRuleReq) error {
+	return b.post(config, uriLtm, uriCipher, "rule")
+}
+
+func (b *BigIP) ModifyLtmCipherRule(name string, config *CipherRuleReq) error {
+	return b.put(config, uriLtm, uriCipher, "rule", name)
+}
+
+func (b *BigIP) DeleteLtmCipherRule(name string) error {
+	return b.delete(uriLtm, uriCipher, "rule", name)
+}
+
+func (b *BigIP) GetLtmCipherRule(name string) (*CipherRuleReq, error) {
+	var cipherRule CipherRuleReq
+	err, ok := b.getForEntity(&cipherRule, uriLtm, uriCipher, "rule", name)
+	if err != nil {
+		return nil, err
+	}
+
+	if !ok {
+		return nil, nil
+	}
+	return &cipherRule, nil
+}
+
+//
+//type PolicyRule struct {
+//Name          string `json:"name,omitempty"`
+//Partition     string `json:"partition,omitempty"`
+//NameReference struct {
+//Link string `json:"link,omitempty"`
+//} `json:"nameReference,omitempty"`
+//}
+
+type CipherGroupReq struct {
+	Name      string        `json:"name,omitempty"`
+	Partition string        `json:"partition,omitempty"`
+	FullPath  string        `json:"fullPath,omitempty"`
+	Ordering  string        `json:"ordering,omitempty"`
+	Allow     []interface{} `json:"allow,omitempty"`
+	Require   []interface{} `json:"require,omitempty"`
+}
+
+func (b *BigIP) AddLtmCipherGroup(config *CipherGroupReq) error {
+	return b.post(config, uriLtm, uriCipher, "group")
+}
+
+func (b *BigIP) ModifyLtmCipherGroup(name string, config *CipherGroupReq) error {
+	return b.put(config, uriLtm, uriCipher, "group", name)
+}
+
+func (b *BigIP) ModifyLtmCipherGroupNew(name string, config interface{}) error {
+	return b.put(config, uriLtm, uriCipher, "group", name)
+}
+
+func (b *BigIP) DeleteLtmCipherGroup(name string) error {
+	return b.delete(uriLtm, uriCipher, "group", name)
+}
+
+func (b *BigIP) GetLtmCipherGroup(name string) (*CipherGroupReq, error) {
+	var cipherGroup CipherGroupReq
+	err, ok := b.getForEntity(&cipherGroup, uriLtm, uriCipher, "group", name)
+	if err != nil {
+		return nil, err
+	}
+
+	if !ok {
+		return nil, nil
+	}
+
+	return &cipherGroup, nil
 }

@@ -126,6 +126,7 @@ func Provider() *schema.Provider {
 			"bigip_ltm_profile_tcp":                 resourceBigipLtmProfileTcp(),
 			"bigip_ltm_profile_ftp":                 resourceBigipLtmProfileFtp(),
 			"bigip_ltm_profile_http":                resourceBigipLtmProfileHttp(),
+			"bigip_ltm_profile_web_acceleration":    resourceBigipLtmProfileWebAcceleration(),
 			"bigip_ltm_persistence_profile_srcaddr": resourceBigipLtmPersistenceProfileSrcAddr(),
 			"bigip_ltm_persistence_profile_dstaddr": resourceBigipLtmPersistenceProfileDstAddr(),
 			"bigip_ltm_persistence_profile_ssl":     resourceBigipLtmPersistenceProfileSSL(),
@@ -139,6 +140,7 @@ func Provider() *schema.Provider {
 			"bigip_sys_dns":                         resourceBigipSysDns(),
 			"bigip_sys_iapp":                        resourceBigipSysIapp(),
 			"bigip_sys_ntp":                         resourceBigipSysNtp(),
+			"bigip_sys_ocsp":                        resourceBigipSysOcsp(),
 			"bigip_sys_provision":                   resourceBigipSysProvision(),
 			"bigip_sys_snmp":                        resourceBigipSysSnmp(),
 			"bigip_sys_snmp_traps":                  resourceBigipSysSnmpTraps(),
@@ -153,6 +155,7 @@ func Provider() *schema.Provider {
 			"bigip_fast_udp_app":                    resourceBigipFastUdpApp(),
 			"bigip_ssl_certificate":                 resourceBigipSslCertificate(),
 			"bigip_ssl_key":                         resourceBigipSslKey(),
+			"bigip_ssl_key_cert":                    resourceBigipSSLKeyCert(),
 			"bigip_command":                         resourceBigipCommand(),
 			"bigip_common_license_manage_bigiq":     resourceBigiqLicenseManage(),
 			"bigip_bigiq_as3":                       resourceBigiqAs3(),
@@ -164,6 +167,8 @@ func Provider() *schema.Provider {
 			"bigip_ipsec_profile":                   resourceBigipIpsecProfile(),
 			"bigip_waf_policy":                      resourceBigipAwafPolicy(),
 			"bigip_vcmp_guest":                      resourceBigipVcmpGuest(),
+			"bigip_ltm_cipher_rule":                 resourceBigipLtmCipherRule(),
+			"bigip_ltm_cipher_group":                resourceBigipLtmCipherGroup(),
 		},
 	}
 	p.ConfigureContextFunc = func(ctx context.Context, d *schema.ResourceData) (interface{}, diag.Diagnostics) {

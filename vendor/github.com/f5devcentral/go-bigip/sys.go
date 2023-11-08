@@ -15,6 +15,8 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
+
 	//"strings"
 	"time"
 )
@@ -237,6 +239,28 @@ type ExternalDGFile struct {
 	Type       string `json:"type"`
 }
 
+type OCSP struct {
+	Name                       string `json:"name,omitempty"`
+	FullPath                   string `json:"fullPath,omitempty"`
+	Partition                  string `json:"partition,omitempty"`
+	ProxyServerPool            string `json:"proxyServerPool,omitempty"`
+	DnsResolver                string `json:"dnsResolver,omitempty"`
+	RouteDomain                string `json:"routeDomain,omitempty"`
+	ConcurrentConnectionsLimit int64  `json:"concurrentConnectionsLimit,omitempty"`
+	ResponderUrl               string `json:"responderUrl,omitempty"`
+	ConnectionTimeout          int64  `json:"timeout,omitempty"`
+	TrustedResponders          string `json:"trustedResponders,omitempty"`
+	ClockSkew                  int64  `json:"clockSkew,omitempty"`
+	StatusAge                  int64  `json:"statusAge,omitempty"`
+	StrictRespCertCheck        string `json:"strictRespCertCheck,omitempty"`
+	CacheTimeout               string `json:"cacheTimeout,omitempty"`
+	CacheErrorTimeout          int64  `json:"cacheErrorTimeout,omitempty"`
+	SignerCert                 string `json:"signerCert,omitempty"`
+	SignerKey                  string `json:"signerKey,omitempty"`
+	Passphrase                 string `json:"passphrase,omitempty"`
+	SignHash                   string `json:"signHash,omitempty"`
+}
+
 func (p *LogPublisher) MarshalJSON() ([]byte, error) {
 	return json.Marshal(destinationsDTO{
 		Name: p.Name,
@@ -285,6 +309,7 @@ const (
 	uriSslCert         = "ssl-cert"
 	uriSslKey          = "ssl-key"
 	uriDataGroup       = "data-group"
+	uriTransaction     = "transaction"
 	REST_DOWNLOAD_PATH = "/var/config/rest/downloads"
 )
 
@@ -295,38 +320,49 @@ type Certificates struct {
 
 // Certificate represents an SSL Certificate.
 type Certificate struct {
-	AppService              string `json:"appService,omitempty"`
-	CachePath               string `json:"cachePath,omitempty"`
-	CertificateKeyCurveName string `json:"certificateKeyCurveName,omitempty"`
-	CertificateKeySize      int    `json:"certificateKeySize,omitempty"`
-	CertValidationOptions   string `json:"certValidationOptions,omitempty"`
-	Checksum                string `json:"checksum,omitempty"`
-	CreatedBy               string `json:"createdBy,omitempty"`
-	CreateTime              string `json:"createTime,omitempty"`
-	Email                   string `json:"email,omitempty"`
-	ExpirationDate          int    `json:"expirationDate,omitempty"`
-	ExpirationString        string `json:"expirationString,omitempty"`
-	Fingerprint             string `json:"fingerprint,omitempty"`
-	FullPath                string `json:"fullPath,omitempty"`
-	Generation              int    `json:"generation,omitempty"`
-	IsBundle                string `json:"isBundle,omitempty"`
-	IsDynamic               string `json:"isDynamic,omitempty"`
-	Issuer                  string `json:"issuer,omitempty"`
-	IssuerCert              string `json:"issuerCert,omitempty"`
-	KeyType                 string `json:"keyType,omitempty"`
-	LastUpdateTime          string `json:"lastUpdateTime,omitempty"`
-	Mode                    int    `json:"mode,omitempty"`
-	Name                    string `json:"name,omitempty"`
-	Partition               string `json:"partition,omitempty"`
-	Revision                int    `json:"revision,omitempty"`
-	SerialNumber            string `json:"serialNumber,omitempty"`
-	Size                    uint64 `json:"size,omitempty"`
-	SourcePath              string `json:"sourcePath,omitempty"`
-	Subject                 string `json:"subject,omitempty"`
-	SubjectAlternativeName  string `json:"subjectAlternativeName,omitempty"`
-	SystemPath              string `json:"systemPath,omitempty"`
-	UpdatedBy               string `json:"updatedBy,omitempty"`
-	Version                 int    `json:"version,omitempty"`
+	AppService              string                  `json:"appService,omitempty"`
+	CachePath               string                  `json:"cachePath,omitempty"`
+	CertificateKeyCurveName string                  `json:"certificateKeyCurveName,omitempty"`
+	CertificateKeySize      int                     `json:"certificateKeySize,omitempty"`
+	CertValidationOptions   []string                `json:"certValidationOptions,omitempty"`
+	Checksum                string                  `json:"checksum,omitempty"`
+	CreatedBy               string                  `json:"createdBy,omitempty"`
+	CreateTime              string                  `json:"createTime,omitempty"`
+	Email                   string                  `json:"email,omitempty"`
+	ExpirationDate          int64                   `json:"expirationDate,omitempty"`
+	ExpirationString        string                  `json:"expirationString,omitempty"`
+	Fingerprint             string                  `json:"fingerprint,omitempty"`
+	FullPath                string                  `json:"fullPath,omitempty"`
+	Generation              int                     `json:"generation,omitempty"`
+	IsBundle                string                  `json:"isBundle,omitempty"`
+	IsDynamic               string                  `json:"isDynamic,omitempty"`
+	Issuer                  string                  `json:"issuer,omitempty"`
+	IssuerCert              string                  `json:"issuerCert,omitempty"`
+	KeyType                 string                  `json:"keyType,omitempty"`
+	LastUpdateTime          string                  `json:"lastUpdateTime,omitempty"`
+	Mode                    int                     `json:"mode,omitempty"`
+	Name                    string                  `json:"name,omitempty"`
+	Partition               string                  `json:"partition,omitempty"`
+	Revision                int                     `json:"revision,omitempty"`
+	SerialNumber            string                  `json:"serialNumber,omitempty"`
+	Size                    uint64                  `json:"size,omitempty"`
+	SourcePath              string                  `json:"sourcePath,omitempty"`
+	Subject                 string                  `json:"subject,omitempty"`
+	SubjectAlternativeName  string                  `json:"subjectAlternativeName,omitempty"`
+	SystemPath              string                  `json:"systemPath,omitempty"`
+	UpdatedBy               string                  `json:"updatedBy,omitempty"`
+	Version                 int                     `json:"version,omitempty"`
+	CertValidatorRef        *CertValidatorReference `json:"certValidatorsReference,omitempty"`
+}
+
+type CertValidatorReference struct {
+	Items []CertValidatorState `json:"items,omitempty"`
+}
+
+type CertValidatorState struct {
+	Name      string `json:"name,omitempty"`
+	Partition string `json:"partition,omitempty"`
+	FullPath  string `json:"fullPath,omitempty"`
 }
 
 // Keys represents a list of installed keys.
@@ -358,6 +394,17 @@ type Key struct {
 	SourcePath     string `json:"sourcePath,omitempty"`
 	SystemPath     string `json:"systemPath,omitempty"`
 	UpdatedBy      string `json:"updatedBy,omitempty"`
+}
+
+type Transaction struct {
+	TransID          int64  `json:"transId,omitempty"`
+	State            string `json:"state,omitempty"`
+	TimeoutSeconds   int64  `json:"timeoutSeconds,omitempty"`
+	AsyncExecution   bool   `json:"asyncExecution,omitempty"`
+	ValidateOnly     bool   `json:"validateOnly,omitempty"`
+	ExecutionTimeout int64  `json:"executionTimeout,omitempty"`
+	ExecutionTime    int64  `json:"executionTime,omitempty"`
+	FailureReason    string `json:"failureReason,omitempty"`
 }
 
 // Certificates returns a list of certificates.
@@ -393,25 +440,22 @@ func (b *BigIP) ModifyExternalDatagroupfile(dgName string, dataGroup *ExternalDG
 
 // ModifyCertificate installs a certificate.
 func (b *BigIP) ModifyCertificate(certName string, cert *Certificate) error {
-	return b.patch(cert, uriSys, uriFile, uriSslCert, certName)
+	return b.patch(cert, uriSys, uriFile, uriSslCert, certName, "?expandSubcollections=true")
 }
 
 // UploadCertificate copies a certificate local disk to BIGIP
-func (b *BigIP) UploadCertificate(certname, certpath, partition string) error {
+func (b *BigIP) UploadCertificate(certpath string, cert *Certificate) error {
 	certbyte := []byte(certpath)
-	_, err := b.UploadBytes(certbyte, certname)
+	_, err := b.UploadBytes(certbyte, cert.Name)
 	if err != nil {
 		return err
 	}
-	sourcepath := "file://" + REST_DOWNLOAD_PATH + "/" + certname
+	sourcepath := "file://" + REST_DOWNLOAD_PATH + "/" + cert.Name
 	log.Printf("[DEBUG] sourcepath :%+v", sourcepath)
-	cert := Certificate{
-		Name:       certname,
-		SourcePath: sourcepath,
-		Partition:  partition,
-	}
+
+	cert.SourcePath = sourcepath
 	log.Printf("cert: %+v\n", cert)
-	err = b.AddCertificate(&cert)
+	err = b.AddCertificate(cert)
 	if err != nil {
 		return err
 	}
@@ -438,20 +482,18 @@ func (b *BigIP) DeleteCertificate(name string) error {
 }
 
 // UpdateCertificate copies a certificate local disk to BIGIP
-func (b *BigIP) UpdateCertificate(certname, certpath, partition string) error {
+func (b *BigIP) UpdateCertificate(certpath string, cert *Certificate) error {
 	certbyte := []byte(certpath)
-	_, err := b.UploadBytes(certbyte, certname)
+	_, err := b.UploadBytes(certbyte, cert.Name)
 	if err != nil {
 		return err
 	}
-	sourcepath := "file://" + REST_DOWNLOAD_PATH + "/" + certname
-	cert := Certificate{
-		Name:       certname,
-		SourcePath: sourcepath,
-	}
-	certName := fmt.Sprintf("/%s/%s", partition, certname)
+	sourcepath := "file://" + REST_DOWNLOAD_PATH + "/" + cert.Name
+
+	cert.SourcePath = sourcepath
+	certName := fmt.Sprintf("/%s/%s", cert.Partition, cert.Name)
 	log.Printf("certName: %+v\n", certName)
-	err = b.ModifyCertificate(certName, &cert)
+	err = b.ModifyCertificate(certName, cert)
 	if err != nil {
 		return err
 	}
@@ -779,6 +821,37 @@ func (b *BigIP) CreateTRAP(name string, authPasswordEncrypted string, authProtoc
 	return b.post(config, uriSys, uriSnmp, uriTraps)
 }
 
+func (b *BigIP) StartTransaction() (*Transaction, error) {
+	body := make(map[string]interface{})
+	resp, err := b.postReq(body, uriMgmt, uriTm, uriTransaction)
+
+	if err != nil {
+		return nil, fmt.Errorf("error encountered while starting transaction: %v", err)
+	}
+	transaction := &Transaction{}
+	err = json.Unmarshal(resp, transaction)
+	if err != nil {
+		return nil, err
+	}
+	log.Printf("[INFO] Transaction: %v", transaction)
+	b.Transaction = fmt.Sprint(transaction.TransID)
+	return transaction, nil
+}
+
+func (b *BigIP) CommitTransaction(tId int64) error {
+	b.Transaction = ""
+	commitTransaction := map[string]interface{}{
+		"state": "VALIDATING",
+	}
+	log.Printf("[INFO] Commiting Transaction with TransactionID: %v", tId)
+
+	err := b.patch(commitTransaction, uriMgmt, uriTm, uriTransaction, strconv.Itoa(int(tId)))
+	if err != nil {
+		return fmt.Errorf("%s", err)
+	}
+	return nil
+}
+
 func (b *BigIP) ModifyTRAP(config *TRAP) error {
 	return b.patch(config, uriSys, uriSnmp, uriTraps)
 }
@@ -949,4 +1022,37 @@ func (b *BigIP) UploadDataGroupFile(f *os.File, tmpName string) (*Upload, error)
 	}
 	log.Printf("tmpName:%+v", tmpName)
 	return b.Upload(f, info.Size(), uriShared, uriFileTransfer, uriUploads, fmt.Sprintf("%s", tmpName))
+}
+
+func (b *BigIP) CreateOCSP(ocsp *OCSP) error {
+	return b.post(ocsp, uriSys, "crypto", "cert-validator", "ocsp")
+}
+
+func (b *BigIP) ModifyOCSP(name string, ocsp *OCSP) error {
+	return b.put(ocsp, uriSys, "crypto", "cert-validator", "ocsp", name)
+}
+
+func (b *BigIP) GetOCSP(name string) (*OCSP, error) {
+	var ocsp OCSP
+	err, _ := b.getForEntity(&ocsp, uriSys, "crypto", "cert-validator", "ocsp", name)
+
+	if err != nil {
+		return nil, err
+	}
+
+	js, err := json.Marshal(ocsp)
+
+	if err != nil {
+		return nil, fmt.Errorf("error encountered while marshalling ocsp: %v", err)
+	}
+
+	if string(js) == "{}" {
+		return nil, nil
+	}
+
+	return &ocsp, nil
+}
+
+func (b *BigIP) DeleteOCSP(name string) error {
+	return b.delete(uriSys, "crypto", "cert-validator", "ocsp", name)
 }

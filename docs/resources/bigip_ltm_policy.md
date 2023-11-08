@@ -37,26 +37,29 @@ resource "bigip_ltm_policy" "test-policy" {
   }
   depends_on = [bigip_ltm_pool.mypool]
 }
-```      
+```
 
 ## Argument Reference
+
+> [!NOTE]
+> The attribute `published_copy` is not required anymore as the resource automatically publishes the policy, hence it's deprecated and will be removed from future release.
 
 * `name`- (Required) Name of the Policy ( policy name should be in full path which is combination of partition and policy name )
 
 * `strategy` - (Optional) Specifies the match strategy
 
+* `description` - (Optional) Specifies descriptive text that identifies the ltm policy.
+
 * `requires` - (Optional) Specifies the protocol
 
-* `published_copy` - (Optional) If you want to publish the policy else it will be deployed in Drafts mode.
+* `published_copy` - (Deprecated) If you want to publish the policy else it will be deployed in Drafts mode. This attribute is deprecated and will be removed in a future release.
 
 *  `controls` - (Optional) Specifies the controls
 
 * `rule` - (Optional,type `list`) List of Rules can be applied using the policy. Each rule is block type with following arguments.
-
     * `name` -  (Required,type `string`) Name of Rule to be applied in policy.
-    
+    * `description` - (Optional) Specifies descriptive text that identifies the irule attached to policy.
     * `condition` - (Optional,type `set`) Block type. See [condition](#condition) block for more details.
-    
     * `action` - (Optional,type `set`) Block type. See [action](#action) block for more details.
 
 * `forward` - (Optional) This action will affect forwarding.
