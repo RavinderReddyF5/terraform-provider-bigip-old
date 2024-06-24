@@ -26,6 +26,12 @@ jobs:
         with:
           go-version: ${{ matrix.golang }}
           cache: true
-          run: |
-            go mod download
-            go build -v .
+      - name: Get dependencies
+        run: |
+          go mod download
+      - name: Build
+        run: |
+          pwd
+          go version
+          go build -v .
+          ls -ltr
